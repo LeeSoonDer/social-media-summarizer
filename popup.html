@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Social Summarizer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 380px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 13px;
+      color: #1a1a1a;
+      background: #fafafa;
+    }
+    header {
+      padding: 12px 14px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    header h1 { font-size: 15px; font-weight: 600; }
+    header p { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+    header a {
+      color: #fff;
+      font-size: 11px;
+      opacity: 0.9;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+    main { padding: 12px 14px 14px; }
+    #status {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+    #status.error { color: #dc2626; }
+    #status.loading { color: #6366f1; }
+    .field { margin-bottom: 10px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+    .field .value {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      padding: 8px 10px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .scroll.value {
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    ul.value { padding-left: 18px; margin: 0; }
+    ul.value li { margin-bottom: 4px; }
+    .empty { color: #bbb; font-style: italic; }
+    #setup-hint {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      margin-bottom: 10px;
+      display: none;
+    }
+    #setup-hint a { color: #6366f1; }
+    #results { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Social Summarizer</h1>
+      <p>AI 中英双语总结</p>
+    </div>
+    <a href="#" id="openOptions">设置</a>
+  </header>
+  <main>
+    <div id="setup-hint">
+      请先 <a href="#" id="setupLink">配置 Gemini API Key</a>。
+    </div>
+    <p id="status" class="loading">正在分析页面…</p>
+
+    <div id="results">
+      <div class="field" id="summaryZh">
+        <label>中文总结</label>
+        <div class="value scroll">—</div>
+      </div>
+      <div class="field" id="summaryEn">
+        <label>English Summary</label>
+        <div class="value scroll">—</div>
+      </div>
+      <div class="field" id="keyPoints">
+        <label>要点</label>
+        <ul class="value"></ul>
+      </div>
+      <div class="field" id="products">
+        <label>提到的工具/产品</label>
+        <ul class="value"></ul>
+      </div>
+      <div class="field" id="actions">
+        <label>行动建议</label>
+        <ul class="value"></ul>
+      </div>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

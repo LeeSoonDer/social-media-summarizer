@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Social Summarizer — 设置</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p.hint { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: monospace;
+    }
+    button {
+      margin-top: 14px;
+      padding: 10px 20px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+    #msg { margin-top: 12px; font-size: 13px; }
+    #msg.ok { color: #16a34a; }
+    #msg.err { color: #dc2626; }
+    a { color: #6366f1; }
+  </style>
+</head>
+<body>
+  <h1>API 设置</h1>
+  <p class="hint">
+    在此粘贴 Gemini API Key。Key 仅保存在本机 Chrome 中，不会上传或写入代码仓库。
+    获取 Key：<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+  </p>
+  <label for="apiKey">Gemini API Key</label>
+  <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
+  <button type="button" id="save">保存</button>
+  <p id="msg"></p>
+  <script src="options.js"></script>
+</body>
+</html>
