@@ -1,8 +1,8 @@
 const STORAGE_KEY = "geminiApiKey";
 const GEMINI_MODELS = [
-  "gemini-2.0-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
-  "gemini-1.5-flash",
+  "gemini-2.0-flash",
 ];
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -134,6 +134,8 @@ async function requestGemini(apiKey, model, parts) {
     const msg = data?.error?.message || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
+    err.model = model;
+    err.details = data?.error?.details || [];
     throw err;
   }
 
@@ -153,6 +155,7 @@ async function callGemini(apiKey, content) {
   ];
 
   let lastError = null;
+  const rateLimitErrors = [];
 
   for (const attempt of attempts) {
     const parts = buildParts(content, attempt.includeImages);
@@ -163,7 +166,10 @@ async function callGemini(apiKey, content) {
       } catch (err) {
         lastError = err;
         const msg = err.message || "";
-        if (err.status === 429) throw new Error("quota_exceeded");
+        if (err.status === 429) {
+          rateLimitErrors.push(`${model} (${attempt.label}): ${msg}`);
+          continue;
+        }
         if (msg.includes("API key") || msg.includes("API_KEY")) {
           throw new Error("invalid_api_key");
         }
@@ -171,6 +177,12 @@ async function callGemini(apiKey, content) {
         if (attempt.includeImages && (err.status === 400 || msg.includes("image"))) break;
       }
     }
+  }
+
+  if (rateLimitErrors.length) {
+    const err = new Error(`rate_limited: ${rateLimitErrors.join(" | ")}`);
+    err.status = 429;
+    throw err;
   }
 
   throw lastError || new Error("all_models_failed");
@@ -189,11 +201,35 @@ function mapError(err) {
   const code = err?.message || String(err);
   if (code === "invalid_api_key") return "API Key 无效，请在设置中检查。";
   if (code === "quota_exceeded") return "API 配额已用尽，请稍后再试。";
+  if (code.startsWith("rate_limited:")) {
+    return `Gemini 返回限速/配额错误：${code.replace("rate_limited: ", "")}`;
+  }
   if (code === "invalid_json") return "AI 返回格式异常，请重试。";
   if (code === "safety_blocked") return "内容被安全策略拦截，请换一篇帖子。";
   if (code === "empty_response") return "AI 无返回内容，请重试。";
   if (code === "all_models_failed") return "所有模型均不可用，请检查 API Key 与网络。";
   return code.length > 180 ? `${code.slice(0, 180)}…` : code;
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { action: "ping" });
+    return;
+  } catch {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content.js"],
+    });
+  }
+}
+
+async function extractFromTab(tabId) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, { action: "extractWithImages" });
+  } catch {
+    await ensureContentScript(tabId);
+    return await chrome.tabs.sendMessage(tabId, { action: "extractWithImages" });
+  }
 }
 
 async function run() {
@@ -219,7 +255,7 @@ async function run() {
 
   let content;
   try {
-    content = await chrome.tabs.sendMessage(tab.id, { action: "extractWithImages" });
+    content = await extractFromTab(tab.id);
   } catch {
     setStatus("无法连接页面脚本，请刷新页面后重试。", "error");
     return;

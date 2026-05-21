@@ -166,6 +166,10 @@ function extractContent() {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "ping") {
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message.action === "extract") {
     try {
       sendResponse(extractContent());
