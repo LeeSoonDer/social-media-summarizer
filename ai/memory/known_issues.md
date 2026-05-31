@@ -25,3 +25,13 @@ Likely Causes:
 - Unsupported URL or restricted Chrome page.
 Current Mitigation:
 - Popup now attempts to inject `content.js` using `chrome.scripting.executeScript`.
+## Video OCR and audio transcript limitation
+Symptoms: Instagram/Reels/TikTok-style videos may show burned-in subtitles on the video frame, but extractor returns no transcript.
+Cause: Burned-in text is pixels, not DOM text. Spoken audio also is not available as text unless the platform exposes captions/transcript or the extension records audio and runs STT.
+Current Mitigation:
+- Extract visible DOM captions and subtitle track metadata when available.
+- Output metadata explaining that frame text needs OCR/AI vision.
+- For YouTube, prefer transcript panel text, then try captionTracks fetch. CC overlay is treated only as current visible captions.
+Future Options:
+- Add OCR/vision mode for frames.
+- Add optional tab audio capture + local/external speech-to-text.

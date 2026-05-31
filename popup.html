@@ -3,116 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Social Summarizer</title>
+  <title>Social Extractor</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 380px;
+      width: 440px;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       font-size: 13px;
-      color: #1a1a1a;
-      background: #fafafa;
+      color: #161616;
+      background: #f7f7f4;
     }
     header {
       padding: 12px 14px;
-      background: linear-gradient(135deg, #6366f1, #a855f7);
+      background: #202124;
       color: #fff;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      gap: 12px;
+      align-items: center;
     }
-    header h1 { font-size: 15px; font-weight: 600; }
-    header p { font-size: 11px; opacity: 0.85; margin-top: 2px; }
-    header a {
-      color: #fff;
+    h1 { font-size: 15px; font-weight: 650; }
+    header p { font-size: 11px; color: #d6d6d6; margin-top: 2px; }
+    main { padding: 12px 14px 14px; }
+    #status { font-size: 12px; color: #666; margin-bottom: 10px; }
+    #status.error { color: #b91c1c; }
+    #status.loading { color: #2563eb; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    button {
+      border: 1px solid #d0d0d0;
+      background: #fff;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button.primary { background: #202124; color: #fff; border-color: #202124; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    #meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+      color: #555;
       font-size: 11px;
-      opacity: 0.9;
-      text-decoration: underline;
+    }
+    .pill {
+      background: #fff;
+      border: 1px solid #e0e0dc;
+      border-radius: 6px;
+      padding: 6px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
-    main { padding: 12px 14px 14px; }
-    #status {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 10px;
-    }
-    #status.error { color: #dc2626; }
-    #status.loading { color: #6366f1; }
-    .field { margin-bottom: 10px; }
-    .field label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 3px;
-    }
-    .field .value {
-      background: #fff;
-      border: 1px solid #e5e5e5;
-      border-radius: 6px;
-      padding: 8px 10px;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-    .scroll.value {
-      max-height: 120px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-    }
-    ul.value { padding-left: 18px; margin: 0; }
-    ul.value li { margin-bottom: 4px; }
-    .empty { color: #bbb; font-style: italic; }
-    #setup-hint {
+    #tips {
+      display: none;
       background: #fff7ed;
       border: 1px solid #fed7aa;
-      border-radius: 6px;
-      padding: 10px;
-      font-size: 12px;
+      border-radius: 7px;
+      color: #7c2d12;
+      padding: 8px 10px;
       margin-bottom: 10px;
-      display: none;
+      font-size: 12px;
+      line-height: 1.45;
     }
-    #setup-hint a { color: #6366f1; }
-    #results { display: none; }
+    #output {
+      width: 100%;
+      min-height: 380px;
+      max-height: 560px;
+      resize: vertical;
+      overflow: auto;
+      white-space: pre-wrap;
+      border: 1px solid #d9d9d4;
+      border-radius: 7px;
+      background: #fff;
+      padding: 10px;
+      line-height: 1.5;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>Social Summarizer</h1>
-      <p>AI 中英双语总结</p>
+      <h1>Social Extractor</h1>
+      <p>提取社媒内容为可复制文本</p>
     </div>
-    <a href="#" id="openOptions">设置</a>
   </header>
   <main>
-    <div id="setup-hint">
-      请先 <a href="#" id="setupLink">配置 Gemini API Key</a>。
+    <p id="status" class="loading">正在提取页面内容...</p>
+    <div class="toolbar">
+      <button id="copy" class="primary" disabled>复制全文</button>
+      <button id="copyPrompt" disabled>复制 AI Prompt</button>
+      <button id="refresh">重新提取</button>
     </div>
-    <p id="status" class="loading">正在分析页面…</p>
-
-    <div id="results">
-      <div class="field" id="summaryZh">
-        <label>中文总结</label>
-        <div class="value scroll">—</div>
-      </div>
-      <div class="field" id="summaryEn">
-        <label>English Summary</label>
-        <div class="value scroll">—</div>
-      </div>
-      <div class="field" id="keyPoints">
-        <label>要点</label>
-        <ul class="value"></ul>
-      </div>
-      <div class="field" id="products">
-        <label>提到的工具/产品</label>
-        <ul class="value"></ul>
-      </div>
-      <div class="field" id="actions">
-        <label>行动建议</label>
-        <ul class="value"></ul>
-      </div>
+    <div id="meta">
+      <div class="pill" id="platform">Platform: -</div>
+      <div class="pill" id="counts">Items: -</div>
     </div>
+    <div id="tips"></div>
+    <textarea id="output" readonly placeholder="提取结果会显示在这里"></textarea>
   </main>
   <script src="popup.js"></script>
 </body>

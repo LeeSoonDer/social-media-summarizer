@@ -29,3 +29,8 @@ Decision: Maintain project memory in `ai/` markdown files.
 Reason: Chat context is temporary and grows stale; markdown memory keeps decisions and state portable across AI tools.
 Tradeoff: Requires regular updates.
 Future Implications: New AI sessions should read `ai/project_overview.md`, `ai/current_state.md`, `ai/architecture.md`, `ai/coding_rules.md`, and `ai/decisions.md` first.
+## 2026-05-26 - Pivot to No-API Social Content Extractor
+Decision: Change the default product flow from AI summarization to direct social content extraction as copyable markdown.
+Reason: User wants fast, universal extraction and will manually paste the output into web AI tools. This avoids Gemini quota, API key, cost, and upload-by-default privacy concerns.
+Tradeoff: The extension will not understand images or transcribe speech by itself. Video content depends on visible captions/transcripts, video metadata, or future optional recording/STT.
+Future Implications: Prioritize platform-specific extractors for major social sites. Keep AI/STT/OCR as optional future modes, not MVP dependencies.

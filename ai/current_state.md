@@ -3,29 +3,35 @@
 ## Completed Work
 - Chrome Extension project scaffold exists.
 - Manifest V3 extension configured.
-- Popup UI, options page, content script, and icons exist.
-- Gemini API key can be saved in local extension storage.
-- Content extraction works through `content.js` for Xiaohongshu and Instagram.
-- Gemini request flow exists in `popup.js`.
-- Gemini model fallback and rate-limit diagnostics were improved.
-- Popup can now attempt to inject `content.js` if the page script is not connected.
+- Popup UI and content script exist.
+- Markdown AI memory system exists in `ai/`.
 - GitHub remote is configured: `https://github.com/LeeSoonDer/social-media-summarizer.git`.
+- Product pivoted from Gemini summarizer to universal social content extractor.
+- Popup now extracts and displays copyable markdown text without calling Gemini.
+- `content.js` now routes extraction by platform.
+- Current extractor targets: Xiaohongshu, Instagram, X/Twitter, Reddit, YouTube, LinkedIn, Facebook, and generic webpages.
+- Copy button and copy AI prompt flow exist.
+- Popup Chinese UI encoding has been repaired.
+- YouTube extractor now prefers real transcript panel text, then attempts no-API captionTracks fetch, and filters noisy YouTube links/images.
 
 ## In Progress
-- Phase 2 testing: Gemini API quota/rate-limit behavior and real page summarization.
-- Validating extension behavior after reloading unpacked extension in Chrome.
+- Testing YouTube captionTracks behavior on real videos with manual captions, auto captions, and no captions.
+- Improving per-platform selectors based on actual DOM behavior.
 
 ## Next Priorities
-1. Reload unpacked extension in `chrome://extensions` and test again on supported pages.
-2. Capture the full Gemini error message if rate-limit issues continue.
-3. Improve extraction reliability for Xiaohongshu and Instagram post layouts.
-4. Add copy button and better loading/error states.
-5. Decide whether to keep direct API calls in extension for MVP or introduce a backend before public release.
+1. Reload unpacked extension in `chrome://extensions`.
+2. Retest YouTube video extraction on the previously noisy sample.
+3. Test Instagram Reels, X/Twitter video, Facebook video, LinkedIn video, and Reddit video posts.
+4. Decide whether Phase 3B should add debug mode or more platform extractors first.
+5. Keep OCR/STT as optional future modes, not default behavior.
 
 ## Current Blockers
-- Gemini API may still return quota/rate-limit errors depending on Google project limits, model limits, request size, or region/project configuration.
-- Chrome may run stale extension code until the unpacked extension is reloaded.
+- Social platforms frequently change DOM structure.
+- Video speech cannot be fully transcribed without platform captions, playback recording, local STT, or external AI/STT.
+- Some pages hide content behind lazy loading or login state.
 
 ## Temporary Notes
+- Gemini code path is no longer the default UX.
+- Extension should avoid uploading user content by default.
 - During development, Chrome runs the local unpacked folder, not GitHub directly.
-- GitHub is the source control remote. Chrome Web Store is the future production update channel.
+- GitHub push requires explicit user approval.

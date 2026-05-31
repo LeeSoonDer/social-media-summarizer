@@ -9,3 +9,5 @@
 - Added content script auto-injection fallback.
 - Pushed commit `31e470a` to GitHub.
 - Added `ai/` markdown memory system.
+- 2026-05-27: Added video/transcript UX and extraction improvements for Social Extractor.
+- 2026-05-31: Repaired popup Chinese encoding and improved YouTube transcript extraction/output filtering.
