@@ -48,6 +48,8 @@ function detectPlatform() {
   if (host === "x.com" || host.includes("twitter.com")) return "x-twitter";
   if (host.includes("reddit.com")) return "reddit";
   if (host.includes("youtube.com")) return "youtube";
+  if (host.includes("tiktok.com")) return "tiktok";
+  if (host.includes("threads.net")) return "threads";
   if (host.includes("linkedin.com")) return "linkedin";
   if (host.includes("facebook.com")) return "facebook";
   return "generic";
@@ -85,8 +87,56 @@ function formatTime(seconds) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function metaValues(names) {
+  return unique(names.flatMap((name) => Array.from(document.querySelectorAll(`meta[property="${name}"], meta[name="${name}"]`)).map((el) => attr(el, "content"))), 30);
+}
+
+function collectDeepValues(value, keys, out = []) {
+  if (!value || out.length >= 40) return out;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectDeepValues(item, keys, out));
+    return out;
+  }
+  if (typeof value !== "object") return out;
+  Object.entries(value).forEach(([key, child]) => {
+    if (keys.includes(key) && typeof child === "string" && child.trim()) out.push(child.trim());
+    collectDeepValues(child, keys, out);
+  });
+  return out;
+}
+
+function extractJsonLdObjects() {
+  const objects = [];
+  document.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
+    try {
+      const parsed = JSON.parse(script.textContent || "");
+      if (Array.isArray(parsed)) objects.push(...parsed);
+      else if (parsed?.['@graph']) objects.push(...parsed['@graph']);
+      else if (parsed) objects.push(parsed);
+    } catch {
+      // Ignore invalid structured data.
+    }
+  });
+  return objects;
+}
+
+function extractStructuredVideoUrls() {
+  const metaVideoUrls = metaValues([
+    "og:video",
+    "og:video:url",
+    "og:video:secure_url",
+    "twitter:player",
+    "twitter:player:stream",
+  ]);
+  const itempropUrls = Array.from(document.querySelectorAll('[itemprop="contentUrl"], [itemprop="embedUrl"], [itemprop="thumbnailUrl"]'))
+    .map((el) => attr(el, "content") || attr(el, "href") || attr(el, "src"));
+  const ldUrls = extractJsonLdObjects().flatMap((obj) => collectDeepValues(obj, ["contentUrl", "embedUrl", "thumbnailUrl"]));
+  return unique([...metaVideoUrls, ...itempropUrls, ...ldUrls].filter((url) => /^https?:\/\//i.test(url)), 20);
+}
+
 function extractVideos(limit = 8) {
   const items = [];
+  extractStructuredVideoUrls().forEach((url) => items.push(url));
   document.querySelectorAll("video").forEach((video) => {
     const src = video.currentSrc || video.src || attr(video, "src");
     const poster = attr(video, "poster");
@@ -123,6 +173,25 @@ function extractVisibleCaptionText() {
     "[aria-label*='subtitle' i]",
   ].join(","))).map(textOf).filter((text) => isUsefulText(text, 20)), 20).join("\n");
 }
+function cleanVisibleLines(text, limit = 120) {
+  const blocked = /^(home|search|explore|reels|messages|notifications|profile|log in|sign up|follow|following|like|comment|share|save|reply|more|views?|likes?|comments?|shares?)$/i;
+  return unique(String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => isUsefulText(line, 2) && !blocked.test(line)), limit);
+}
+
+function extractUsefulVisibleText(root = document, limit = 120) {
+  return cleanVisibleLines(textOf(root), limit).join("\n");
+}
+
+function preferLongerText(primary, fallback) {
+  const a = String(primary || "").trim();
+  const b = String(fallback || "").trim();
+  if (!a) return b;
+  if (!b) return a;
+  return b.length > a.length * 1.4 ? b : a;
+}
 
 function extractLinks(limit = 20) {
   return unique(Array.from(document.querySelectorAll("a[href]"))
@@ -130,13 +199,13 @@ function extractLinks(limit = 20) {
     .filter((href) => href && href.startsWith("http") && !href.includes(location.hostname)), limit);
 }
 
-function extractVisibleComments(selectors) {
-  return unique(selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)).map(textOf)).filter((t) => isUsefulText(t, 20)), 20);
+function extractVisibleComments(_selectors) {
+  return [];
 }
 
 function baseResult(platform, data) {
   const body = data.body || metaContent("og:description") || metaContent("description") || "";
-  const allText = [data.title, data.author, body, ...(data.comments || [])].join("\n");
+  const allText = [data.title, data.author, body].join("\n");
   return {
     platform,
     url: location.href,
@@ -155,11 +224,21 @@ function baseResult(platform, data) {
 }
 
 function extractXiaohongshu() {
+  const root = document.querySelector("#noteContainer") || document.querySelector("[class*='note']") || document;
+  const selectedBody = firstText(["#detail-desc .note-text", "#detail-desc", ".note-text", ".content", "[class*='desc']"]);
   return baseResult("xiaohongshu", {
     title: firstText(["#detail-title", ".title", "h1"]),
-    body: firstText(["#detail-desc .note-text", "#detail-desc", ".note-text", ".content", "[class*='desc']"]),
+    body: preferLongerText(selectedBody, extractUsefulVisibleText(root, 80)),
     comments: extractVisibleComments([".comment-item", "[class*='comment'] .content", "[class*='comment']"]),
   });
+}
+
+function videoLimitationMetadata(platformName) {
+  return [
+    `${platformName} video audio is not transcribed by this no-API extractor.`,
+    "Burned-in subtitles or on-screen text require OCR/AI vision.",
+    "If the platform exposes captions as DOM text, they will appear in Transcript / Captions.",
+  ];
 }
 
 function extractInstagram() {
@@ -171,11 +250,12 @@ function extractInstagram() {
   ].filter((item) => isUsefulText(item, 8));
   return baseResult("instagram", {
     title: metaContent("og:title") || document.title,
-    author: firstText(["header a", "article header a"], article),
-    body: candidates[0] || "",
+    author: firstText(["header a", "article header a", "a[href^='/']"], article),
+    body: preferLongerText(candidates[0], extractUsefulVisibleText(article, 90)),
     transcript: extractVisibleCaptionText(),
     comments: extractVisibleComments(["article ul li", "article span"]),
-    metadata: ["Video text burned into frames is not readable without OCR or AI vision."],
+    videos: extractVideos(6),
+    metadata: videoLimitationMetadata("Instagram"),
   });
 }
 
@@ -184,9 +264,11 @@ function extractTwitter() {
   return baseResult("x-twitter", {
     title: document.title,
     author: firstText(["[data-testid='User-Name']", "a[role='link'][href*='/']"], article),
-    body: firstText(["[data-testid='tweetText']", "article div[lang]"], article),
+    body: preferLongerText(firstText(["[data-testid='tweetText']", "article div[lang]"], article), extractUsefulVisibleText(article, 80)),
     transcript: extractVisibleCaptionText(),
     comments: extractVisibleComments(["article [data-testid='tweetText']", "article div[lang]"]),
+    videos: extractVideos(6),
+    metadata: videoLimitationMetadata("X/Twitter"),
   });
 }
 
@@ -195,8 +277,10 @@ function extractReddit() {
   return baseResult("reddit", {
     title: attr(post, "post-title") || firstText(["h1", "[slot='title']", "[data-testid='post-title']"], post),
     author: attr(post, "author") || firstText(["[data-testid='post_author_link']", "a[href*='/user/']"], post),
-    body: attr(post, "post-content") || firstText(["[slot='text-body']", "[data-click-id='text']", ".md"], post),
+    body: preferLongerText(attr(post, "post-content") || firstText(["[slot='text-body']", "[data-click-id='text']", ".md"], post), extractUsefulVisibleText(post, 100)),
     comments: extractVisibleComments(["shreddit-comment", "[data-testid='comment']", ".Comment"]),
+    videos: extractVideos(6),
+    metadata: videoLimitationMetadata("Reddit"),
   });
 }
 
@@ -222,6 +306,56 @@ function extractBalancedJson(text, startIndex) {
     }
   }
   return null;
+}
+function extractBalancedArray(text, startIndex) {
+  const firstBracket = text.indexOf("[", startIndex);
+  if (firstBracket < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = firstBracket; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "[") depth += 1;
+    else if (ch === "]") {
+      depth -= 1;
+      if (depth === 0) return text.slice(firstBracket, i + 1);
+    }
+  }
+  return null;
+}
+
+function relaxedYouTubeJsonText(text) {
+  return text
+    .replace(/\\u0026/g, "&")
+    .replace(/\\\//g, "/")
+    .replace(/\\"/g, '"');
+}
+
+function extractYouTubeCaptionTracksFromScripts() {
+  const scripts = Array.from(document.scripts).map((script) => script.textContent || "");
+  for (const scriptText of scripts) {
+    const variants = [scriptText, relaxedYouTubeJsonText(scriptText)];
+    for (const variant of variants) {
+      const index = variant.indexOf('"captionTracks"');
+      if (index < 0) continue;
+      const arrayText = extractBalancedArray(variant, index);
+      if (!arrayText) continue;
+      try {
+        const tracks = JSON.parse(arrayText);
+        if (Array.isArray(tracks) && tracks.length) return tracks;
+      } catch {
+        // Try the next variant/script.
+      }
+    }
+  }
+  return [];
 }
 
 function getYouTubePlayerResponse() {
@@ -328,7 +462,9 @@ function extractYouTubePlayerCaptions() {
 
 function getYouTubeCaptionTracks() {
   const response = getYouTubePlayerResponse();
-  return response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const responseTracks = response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  if (responseTracks.length) return responseTracks;
+  return extractYouTubeCaptionTracksFromScripts();
 }
 
 function captionTrackLabel(track) {
@@ -364,9 +500,8 @@ function parseWebVttCaptions(text) {
   return unique(lines, 2000).join("\n");
 }
 
-async function fetchYouTubeCaptionTranscript(track) {
-  if (!track?.baseUrl) return "";
-  const jsonUrl = new URL(track.baseUrl);
+async function fetchYouTubeCaptionUrl(url) {
+  const jsonUrl = new URL(url, location.href);
   jsonUrl.searchParams.set("fmt", "json3");
   const response = await fetch(jsonUrl.href, { credentials: "include" });
   if (!response.ok) throw new Error(`caption fetch failed: ${response.status}`);
@@ -378,20 +513,63 @@ async function fetchYouTubeCaptionTranscript(track) {
   }
 }
 
+async function fetchYouTubeCaptionTranscript(track) {
+  if (!track?.baseUrl) return "";
+  return fetchYouTubeCaptionUrl(track.baseUrl);
+}
+
+function youTubeTimedTextCandidateUrls() {
+  const videoId = extractYouTubeVideoId();
+  if (!videoId) return [];
+  const browserLang = (navigator.language || "en").replace("_", "-");
+  const shortLang = browserLang.split("-")[0];
+  const languages = unique([browserLang, shortLang, "en", "en-US", "zh-Hans", "zh-CN", "zh-Hant", "zh-TW"], 10);
+  const urls = [];
+  for (const lang of languages) {
+    for (const kind of ["", "asr"]) {
+      const url = new URL("https://www.youtube.com/api/timedtext");
+      url.searchParams.set("v", videoId);
+      url.searchParams.set("lang", lang);
+      url.searchParams.set("fmt", "json3");
+      if (kind) url.searchParams.set("kind", kind);
+      urls.push(url.href);
+    }
+  }
+  return unique(urls, 30);
+}
+
+async function fetchYouTubeTimedTextFallback() {
+  for (const url of youTubeTimedTextCandidateUrls()) {
+    try {
+      const text = await fetchYouTubeCaptionUrl(url);
+      if (text) return { text, url };
+    } catch {
+      // Try the next language/kind candidate.
+    }
+  }
+  return { text: "", url: "" };
+}
+
 async function extractYouTubeTranscript() {
   const visibleTranscript = extractYouTubeVisibleTranscriptPanel();
   if (visibleTranscript) return { text: visibleTranscript, source: "visible YouTube transcript panel" };
 
   const tracks = getYouTubeCaptionTracks();
   const track = pickYouTubeCaptionTrack(tracks);
-  if (!track) return { text: "", source: "", tracks };
-
-  try {
-    const text = await fetchYouTubeCaptionTranscript(track);
-    return { text, source: `YouTube caption track: ${captionTrackLabel(track)}`, tracks };
-  } catch (err) {
-    return { text: "", source: "", tracks, error: String(err?.message || err) };
+  if (track) {
+    try {
+      const text = await fetchYouTubeCaptionTranscript(track);
+      if (text) return { text, source: `YouTube caption track: ${captionTrackLabel(track)}`, tracks };
+    } catch (err) {
+      const fallback = await fetchYouTubeTimedTextFallback();
+      if (fallback.text) return { text: fallback.text, source: "YouTube timedtext fallback", tracks };
+      return { text: "", source: "", tracks, error: String(err?.message || err) };
+    }
   }
+
+  const fallback = await fetchYouTubeTimedTextFallback();
+  if (fallback.text) return { text: fallback.text, source: "YouTube timedtext fallback", tracks };
+  return { text: "", source: "", tracks };
 }
 
 async function extractYouTube() {
@@ -400,6 +578,7 @@ async function extractYouTube() {
   const metadata = [];
 
   if (transcript.source) metadata.push(`Transcript source: ${transcript.source}`);
+  metadata.push(`Caption tracks found: ${transcript.tracks?.length || 0}`);
   if (transcript.tracks?.length) metadata.push(`Available caption tracks: ${transcript.tracks.map(captionTrackLabel).join(", ")}`);
   if (transcript.error) metadata.push(`Caption fetch issue: ${transcript.error}`);
   if (!transcript.text && currentCaptions) metadata.push(`Current visible CC only: ${currentCaptions}`);
@@ -419,14 +598,52 @@ async function extractYouTube() {
   });
 }
 
+function extractTikTok() {
+  const main = document.querySelector("main") || document;
+  const bodyCandidates = [
+    metaContent("og:description"),
+    firstText(["[data-e2e='browse-video-desc']", "h1", "div[data-e2e*='desc']"], main),
+    ...Array.from(main.querySelectorAll("span, div")).map(textOf).filter((text) => text.includes("#") || text.includes("@")),
+  ].filter((text) => isUsefulText(text, 8));
+  return baseResult("tiktok", {
+    title: metaContent("og:title") || document.title,
+    author: firstText(["[data-e2e='browse-username']", "[data-e2e='browse-nickname']", "a[href^='/@']"], main),
+    body: preferLongerText(bodyCandidates[0], extractUsefulVisibleText(main, 90)),
+    transcript: extractVisibleCaptionText(),
+    comments: extractVisibleComments(["[data-e2e='comment-level-1']", "[class*='Comment']"]),
+    videos: extractVideos(6),
+    links: extractLinks(12),
+    metadata: videoLimitationMetadata("TikTok"),
+  });
+}
+
+function extractThreads() {
+  const article = document.querySelector("article") || document.querySelector("[role='article']") || document;
+  const bodyCandidates = [
+    metaContent("og:description"),
+    ...Array.from(article.querySelectorAll("span[dir='auto'], div[dir='auto']")).map(textOf),
+  ].filter((text) => isUsefulText(text, 8));
+  return baseResult("threads", {
+    title: metaContent("og:title") || document.title,
+    author: firstText(["a[href^='/@']", "header a", "span[dir='auto']"], article),
+    body: preferLongerText(bodyCandidates[0], extractUsefulVisibleText(article, 90)),
+    transcript: extractVisibleCaptionText(),
+    comments: extractVisibleComments(["article span[dir='auto']", "[role='article'] span[dir='auto']"]),
+    videos: extractVideos(6),
+    links: extractLinks(12),
+    metadata: videoLimitationMetadata("Threads"),
+  });
+}
 function extractLinkedIn() {
   const article = document.querySelector("article") || document.querySelector(".feed-shared-update-v2") || document;
   return baseResult("linkedin", {
     title: document.title,
     author: firstText([".update-components-actor__title", ".feed-shared-actor__title", "span[dir='ltr']"], article),
-    body: firstText([".feed-shared-update-v2__description", ".update-components-text", ".break-words", "[data-test-id='main-feed-activity-card']"], article),
+    body: preferLongerText(firstText([".feed-shared-update-v2__description", ".update-components-text", ".break-words", "[data-test-id='main-feed-activity-card']"], article), extractUsefulVisibleText(article, 100)),
     transcript: extractVisibleCaptionText(),
     comments: extractVisibleComments([".comments-comment-item", ".comments-comment-item__main-content"]),
+    videos: extractVideos(6),
+    metadata: videoLimitationMetadata("LinkedIn"),
   });
 }
 
@@ -435,9 +652,11 @@ function extractFacebook() {
   return baseResult("facebook", {
     title: metaContent("og:title") || document.title,
     author: firstText(["strong", "h2", "h3"], main),
-    body: firstText(["[data-ad-preview='message']", "[dir='auto']", "[role='article']"], main),
+    body: preferLongerText(firstText(["[data-ad-preview='message']", "[dir='auto']", "[role='article']"], main), extractUsefulVisibleText(main, 100)),
     transcript: extractVisibleCaptionText(),
     comments: extractVisibleComments(["[role='article'] [dir='auto']", "[aria-label*='Comment'] [dir='auto']"]),
+    videos: extractVideos(6),
+    metadata: videoLimitationMetadata("Facebook"),
   });
 }
 
@@ -464,6 +683,8 @@ async function extractContent() {
     "x-twitter": extractTwitter,
     reddit: extractReddit,
     youtube: extractYouTube,
+    tiktok: extractTikTok,
+    threads: extractThreads,
     linkedin: extractLinkedIn,
     facebook: extractFacebook,
     generic: extractGeneric,

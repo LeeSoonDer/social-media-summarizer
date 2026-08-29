@@ -35,3 +35,14 @@ Current Mitigation:
 Future Options:
 - Add OCR/vision mode for frames.
 - Add optional tab audio capture + local/external speech-to-text.
+
+## Local OCR limitations
+Symptoms: OCR may miss small, blurred, cropped, low-contrast, vertical, stylized, or partially hidden image text.
+Cause: Tesseract reads pixels from the current visible screenshot only; it does not understand off-screen carousel slides or hidden images.
+Current Mitigation:
+- User opens each slide/page and opens the extension to save OCR text into the collection.
+- OCR runs locally with bundled English, Simplified Chinese, and Traditional Chinese language data.
+Future Options:
+- Add image-region crop mode.
+- Add upscale/preprocessing controls.
+- Add optional cloud vision mode if user explicitly approves upload.

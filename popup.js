@@ -1,5 +1,11 @@
+const COLLECTION_KEY = "socialExtractorCollection";
+const MAX_COLLECTION_ITEMS = 80;
+const OCR_LANGS = "eng+chi_sim+chi_tra";
+
 let lastContent = null;
 let lastOutput = "";
+let collection = [];
+let ocrWorkerPromise = null;
 
 function setStatus(text, type = "") {
   const el = document.getElementById("status");
@@ -45,69 +51,154 @@ function section(title, value) {
   return `## ${title}\n${value}`;
 }
 
+function usefulOcrLines(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 2)
+    .filter((line) => !/^[\W_]+$/.test(line));
+}
+
+function cleanOcrText(text) {
+  const seen = new Set();
+  const lines = [];
+  for (const line of usefulOcrLines(text)) {
+    const compact = line.replace(/\s+/g, " ");
+    if (seen.has(compact)) continue;
+    seen.add(compact);
+    lines.push(compact);
+    if (lines.length >= 160) break;
+  }
+  return lines.join("\n");
+}
+
 function buildSuggestedPrompt(content) {
-  const transcriptHint = content.transcript
-    ? "Use the transcript/captions as the primary source for video spoken content."
-    : "If this is a video and no transcript is included, say that spoken content may be missing.";
+  const ocrHint = content.ocrText
+    ? "Use OCR Text From Screenshot as the primary source for words embedded in images."
+    : "Only use the provided Title and Main Text / Caption if OCR text is empty.";
 
   return [
-    "Please analyze the extracted social media content below.",
+    "Please analyze the extracted social media post content below.",
+    "Only use these sections: Title, Main Text / Caption, and OCR Text From Screenshot.",
     "Return:",
     "1. concise summary",
     "2. key points",
     "3. important context",
     "4. claims or advice that should be verified",
     "5. actionable takeaways",
-    transcriptHint,
+    ocrHint,
   ].join("\n");
 }
 
-function formatExtracted(content) {
-  const prompt = buildSuggestedPrompt(content);
+function buildBatchPrompt() {
+  return [
+    "Please analyze the collected social media post content below.",
+    "Only use these sections from each item: Title, Main Text / Caption, and OCR Text From Screenshot.",
+    "The content may come from multiple carousel slides, screenshots, or related posts.",
+    "Deduplicate repeated lines and merge the information.",
+    "Use OCR Text From Screenshot as the primary source for text embedded in images.",
+    "Return:",
+    "1. concise summary",
+    "2. key points",
+    "3. important context",
+    "4. claims or advice that should be verified",
+    "5. actionable takeaways",
+  ].join("\n");
+}
+
+function formatExtracted(content, index = null) {
+  const heading = index === null ? "# Extracted Social Content" : `# Collected Item ${index}`;
   const parts = [
-    "# Extracted Social Content",
-    `Platform: ${content.platform || "unknown"}`,
-    `URL: ${content.url || ""}`,
-    `Extracted At: ${new Date().toISOString()}`,
-    "",
+    heading,
     section("Title", content.title),
-    section("Author", content.author),
-    section("Main Text", content.body),
-    section("Transcript / Captions", content.transcript),
-    section("Hashtags", content.tags),
-    section("Mentions", content.mentions),
-    section("Comments", content.comments),
-    section("Images", content.images),
-    section("Videos", content.videos),
-    section("Links", content.links),
-    section("Metadata", content.metadata),
-    "## Suggested AI Prompt",
-    prompt,
+    section("Main Text / Caption", content.body),
+    section("OCR Text From Screenshot", content.ocrText),
   ].filter(Boolean);
   return parts.join("\n\n");
 }
 
+function formatSingleOutput(content) {
+  return [formatExtracted(content), "## Suggested AI Prompt", buildSuggestedPrompt(content)].join("\n\n");
+}
+
+function formatBatchOutput(items) {
+  return [
+    "# Social Extractor Collection",
+    `Collected Items: ${items.length}`,
+    `Generated At: ${new Date().toISOString()}`,
+    "",
+    "## Batch AI Prompt",
+    buildBatchPrompt(),
+    "",
+    ...items.map((item, index) => formatExtracted(item, index + 1)),
+  ].join("\n\n");
+}
+
+function collectionFingerprint(content) {
+  return [
+    content.url,
+    content.title,
+    content.body,
+    content.ocrText,
+  ].join("\n").slice(0, 30000);
+}
+
+async function loadCollection() {
+  const result = await chrome.storage.local.get(COLLECTION_KEY);
+  collection = Array.isArray(result[COLLECTION_KEY]) ? result[COLLECTION_KEY] : [];
+  updateCollectionUi();
+}
+
+async function saveCollection() {
+  await chrome.storage.local.set({ [COLLECTION_KEY]: collection });
+  updateCollectionUi();
+}
+
+function updateCollectionUi(savedLabel = "-") {
+  document.getElementById("batchCount").textContent = `Collection: ${collection.length} pages`;
+  document.getElementById("lastSaved").textContent = `Current: ${savedLabel}`;
+  document.getElementById("copyBatch").disabled = collection.length === 0;
+}
+
+async function addToCollection(content) {
+  const item = {
+    ...content,
+    extractedAt: new Date().toISOString(),
+    fingerprint: collectionFingerprint(content),
+  };
+  const existingIndex = collection.findIndex((entry) => entry.url === item.url && entry.fingerprint === item.fingerprint);
+  if (existingIndex >= 0) {
+    collection[existingIndex] = item;
+    await saveCollection();
+    updateCollectionUi("updated");
+    return "updated";
+  }
+  collection.push(item);
+  if (collection.length > MAX_COLLECTION_ITEMS) {
+    collection = collection.slice(collection.length - MAX_COLLECTION_ITEMS);
+  }
+  await saveCollection();
+  updateCollectionUi("saved");
+  return "added";
+}
+
 function buildTip(content) {
-  const hasVideo = (content.videos?.length || 0) > 0 || content.platform === "youtube";
-  if (!hasVideo) return "";
-  if (content.transcript) return "已检测到字幕/转录内容。复制全文后可直接交给网页版 AI 分析。";
-  if (content.platform === "youtube") return "未检测到完整字幕。CC 只显示当前几句，不等于完整 transcript；如果视频有字幕轨道，请重新提取或打开文字记录面板。";
-  return "检测到视频，但未检测到字幕。当前 no-API 版本只能提取页面文字、视频链接和可见 caption。";
+  const base = "Current page was saved to the collection. Open the next slide/page and open the extension again to keep collecting.";
+  if (content.ocrText) return `${base} OCR text was detected from the screenshot.`;
+  return `${base} No OCR text was detected from the visible screenshot.`;
 }
 
 function render(content) {
   lastContent = content;
-  lastOutput = formatExtracted(content);
+  lastOutput = formatSingleOutput(content);
   document.getElementById("output").value = lastOutput;
   document.getElementById("copy").disabled = !lastOutput;
-  document.getElementById("copyPrompt").disabled = !lastOutput;
   document.getElementById("platform").textContent = `Platform: ${content.platform || "unknown"}`;
   document.getElementById("counts").textContent = [
     `Text ${content.body ? "yes" : "no"}`,
-    `Transcript ${content.transcript ? "yes" : "no"}`,
+    `OCR ${content.ocrText ? "yes" : "no"}`,
     `Images ${content.images?.length || 0}`,
     `Videos ${content.videos?.length || 0}`,
-    `Comments ${content.comments?.length || 0}`,
   ].join(" / ");
 
   const tip = buildTip(content);
@@ -116,23 +207,76 @@ function render(content) {
   tipEl.style.display = tip ? "block" : "none";
 }
 
+async function getOcrWorker() {
+  if (ocrWorkerPromise) return ocrWorkerPromise;
+  if (!window.Tesseract?.createWorker) throw new Error("OCR runtime not loaded");
+
+  ocrWorkerPromise = Tesseract.createWorker(OCR_LANGS, 1, {
+    workerPath: chrome.runtime.getURL("vendor/tesseract/worker.min.js"),
+    corePath: chrome.runtime.getURL("vendor/tesseract/core"),
+    langPath: chrome.runtime.getURL("vendor/tesseract/lang"),
+    workerBlobURL: false,
+    gzip: true,
+    cacheMethod: "write",
+    logger: (message) => {
+      if (!message?.status) return;
+      const pct = typeof message.progress === "number" ? ` ${Math.round(message.progress * 100)}%` : "";
+      setStatus(`OCR: ${message.status}${pct}`, "loading");
+    },
+  }).then(async (worker) => {
+    await worker.setParameters({
+      preserve_interword_spaces: "1",
+      user_defined_dpi: "180",
+    });
+    return worker;
+  });
+
+  return ocrWorkerPromise;
+}
+
+async function captureCurrentTabImage(tab) {
+  return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+}
+
+async function runOcr(tab) {
+  setStatus("Capturing screenshot for OCR...", "loading");
+  const dataUrl = await captureCurrentTabImage(tab);
+  setStatus("Loading OCR engine...", "loading");
+  const worker = await getOcrWorker();
+  setStatus("Recognizing image text...", "loading");
+  const result = await worker.recognize(dataUrl);
+  return cleanOcrText(result?.data?.text || "");
+}
+
 async function run() {
+  await loadCollection();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
-    setStatus("无法获取当前标签页。", "error");
+    setStatus("Cannot get current tab.", "error");
     return;
   }
   if (!isInjectableUrl(tab.url)) {
-    setStatus("此页面不允许注入脚本。请在普通网页使用。", "error");
+    setStatus("This page cannot be extracted.", "error");
     return;
   }
 
-  setStatus("正在提取页面内容...", "loading");
+  setStatus("Extracting page text...", "loading");
   try {
     const content = await extractFromTab(tab.id);
-    if (!content || content.error) throw new Error(content?.message || "提取失败");
+    if (!content || content.error) throw new Error(content?.message || "Extraction failed");
+
+    try {
+      const ocrText = await runOcr(tab);
+      content.ocrText = ocrText;
+      content.metadata = [...(content.metadata || []), ocrText ? "OCR screenshot text detected." : "OCR ran, but no screenshot text was detected."];
+    } catch (ocrErr) {
+      content.ocrText = "";
+      content.metadata = [...(content.metadata || []), `OCR failed: ${String(ocrErr?.message || ocrErr)}`];
+    }
+
     render(content);
-    setStatus("提取完成。可复制到网页版 AI。", "");
+    const result = await addToCollection(content);
+    setStatus(result === "added" ? "Saved page to collection." : "Updated collection item.", "");
   } catch (err) {
     setStatus(String(err?.message || err), "error");
   }
@@ -140,13 +284,21 @@ async function run() {
 
 document.getElementById("copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText(lastOutput || document.getElementById("output").value);
-  setStatus("已复制全文。", "");
+  setStatus("Copied current page.", "");
 });
 
-document.getElementById("copyPrompt").addEventListener("click", async () => {
-  if (!lastContent) return;
-  await navigator.clipboard.writeText(`${buildSuggestedPrompt(lastContent)}\n\n${lastOutput}`);
-  setStatus("已复制 AI Prompt + 提取内容。", "");
+document.getElementById("copyBatch").addEventListener("click", async () => {
+  await loadCollection();
+  const output = formatBatchOutput(collection);
+  await navigator.clipboard.writeText(output);
+  document.getElementById("output").value = output;
+  setStatus("Copied collection prompt and all collected content.", "");
+});
+
+document.getElementById("clearBatch").addEventListener("click", async () => {
+  collection = [];
+  await saveCollection();
+  setStatus("Collection cleared.", "");
 });
 
 document.getElementById("refresh").addEventListener("click", run);

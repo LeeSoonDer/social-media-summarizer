@@ -1,52 +1,62 @@
 {
-  "manifest_version": 3,
-  "name": "Social Extractor",
-  "description": "One-click text extractor for social media posts",
-  "version": "0.3.0",
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
-  "permissions": [
-    "activeTab",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://www.xiaohongshu.com/*",
-    "https://www.instagram.com/*",
-    "https://twitter.com/*",
-    "https://x.com/*",
-    "https://www.reddit.com/*",
-    "https://old.reddit.com/*",
-    "https://www.youtube.com/*",
-    "https://m.youtube.com/*",
-    "https://www.linkedin.com/*",
-    "https://www.facebook.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.xiaohongshu.com/*",
-        "https://www.instagram.com/*",
-        "https://twitter.com/*",
-        "https://x.com/*",
-        "https://www.reddit.com/*",
-        "https://old.reddit.com/*",
-        "https://www.youtube.com/*",
-        "https://m.youtube.com/*",
-        "https://www.linkedin.com/*",
-        "https://www.facebook.com/*"
-      ],
-      "js": ["content.js"]
-    }
-  ]
+    "manifest_version":  3,
+    "name":  "Social Extractor",
+    "description":  "One-click text extractor for social media posts",
+    "version":  "0.4.0",
+    "icons":  {
+                  "16":  "icons/icon16.png",
+                  "48":  "icons/icon48.png",
+                  "128":  "icons/icon128.png"
+              },
+    "action":  {
+                   "default_popup":  "popup.html",
+                   "default_icon":  {
+                                        "16":  "icons/icon16.png",
+                                        "48":  "icons/icon48.png",
+                                        "128":  "icons/icon128.png"
+                                    }
+               },
+    "permissions":  [
+                        "activeTab",
+                        "scripting",
+                        "storage"
+                    ],
+    "host_permissions":  [
+                             "https://www.xiaohongshu.com/*",
+                             "https://www.instagram.com/*",
+                             "https://twitter.com/*",
+                             "https://x.com/*",
+                             "https://www.reddit.com/*",
+                             "https://old.reddit.com/*",
+                             "https://www.youtube.com/*",
+                             "https://m.youtube.com/*",
+                             "https://www.linkedin.com/*",
+                             "https://www.facebook.com/*",
+                             "https://www.tiktok.com/*",
+                             "https://www.threads.net/*"
+                         ],
+    "content_scripts":  [
+                            {
+                                "matches":  [
+                                                "https://www.xiaohongshu.com/*",
+                                                "https://www.instagram.com/*",
+                                                "https://twitter.com/*",
+                                                "https://x.com/*",
+                                                "https://www.reddit.com/*",
+                                                "https://old.reddit.com/*",
+                                                "https://www.youtube.com/*",
+                                                "https://m.youtube.com/*",
+                                                "https://www.linkedin.com/*",
+                                                "https://www.facebook.com/*",
+                                                "https://www.tiktok.com/*",
+                                                "https://www.threads.net/*"
+                                            ],
+                                "js":  [
+                                           "content.js"
+                                       ]
+                            }
+                        ],
+    "content_security_policy":  {
+                                    "extension_pages":  "script-src \u0027self\u0027 \u0027wasm-unsafe-eval\u0027; object-src \u0027self\u0027; worker-src \u0027self\u0027;"
+                                }
 }

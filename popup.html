@@ -7,7 +7,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 440px;
+      width: 460px;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       font-size: 13px;
       color: #161616;
@@ -38,6 +38,7 @@
       cursor: pointer;
     }
     button.primary { background: #202124; color: #fff; border-color: #202124; }
+    button.danger { color: #b91c1c; border-color: #fecaca; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     #meta {
       display: grid;
@@ -87,23 +88,27 @@
   <header>
     <div>
       <h1>Social Extractor</h1>
-      <p>提取社媒内容为可复制文本</p>
+      <p>&#25171;&#24320;&#21363;&#37319;&#38598;&#65292;&#22270;&#29255;&#25991;&#23383;&#20250; OCR</p>
     </div>
   </header>
   <main>
-    <p id="status" class="loading">正在提取页面内容...</p>
+    <p id="status" class="loading">&#27491;&#22312;&#25552;&#21462;&#39029;&#38754;&#20869;&#23481;...</p>
     <div class="toolbar">
-      <button id="copy" class="primary" disabled>复制全文</button>
-      <button id="copyPrompt" disabled>复制 AI Prompt</button>
-      <button id="refresh">重新提取</button>
+      <button id="copy" class="primary" disabled>&#22797;&#21046;&#26412;&#39029;</button>
+      <button id="copyBatch" disabled>&#22797;&#21046;&#21512;&#38598; Prompt</button>
+      <button id="refresh">&#37325;&#26032;&#37319;&#38598;</button>
+      <button id="clearBatch" class="danger">&#28165;&#31354;&#21512;&#38598;</button>
     </div>
     <div id="meta">
       <div class="pill" id="platform">Platform: -</div>
       <div class="pill" id="counts">Items: -</div>
+      <div class="pill" id="batchCount">&#21512;&#38598;: 0 &#39029;</div>
+      <div class="pill" id="lastSaved">&#26412;&#39029;: -</div>
     </div>
     <div id="tips"></div>
-    <textarea id="output" readonly placeholder="提取结果会显示在这里"></textarea>
+    <textarea id="output" readonly placeholder="&#25552;&#21462;&#32467;&#26524;&#20250;&#26174;&#31034;&#22312;&#36825;&#37324;"></textarea>
   </main>
+  <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
