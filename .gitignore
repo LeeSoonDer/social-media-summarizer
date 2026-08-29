@@ -2,3 +2,4 @@
 .env.*
 secrets.json
 *.key
+node_modules/
