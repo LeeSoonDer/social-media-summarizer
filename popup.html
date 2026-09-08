@@ -2,113 +2,38 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Social Extractor</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 460px;
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      width: 260px;
+      padding: 14px;
+      font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
       font-size: 13px;
       color: #161616;
       background: #f7f7f4;
     }
-    header {
-      padding: 12px 14px;
+    h1 { font-size: 14px; margin-bottom: 6px; }
+    p { font-size: 12px; color: #666; line-height: 1.5; margin-bottom: 10px; }
+    button {
+      width: 100%;
+      border: 1px solid #202124;
       background: #202124;
       color: #fff;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-    }
-    h1 { font-size: 15px; font-weight: 650; }
-    header p { font-size: 11px; color: #d6d6d6; margin-top: 2px; }
-    main { padding: 12px 14px 14px; }
-    #status { font-size: 12px; color: #666; margin-bottom: 10px; }
-    #status.error { color: #b91c1c; }
-    #status.loading { color: #2563eb; }
-    .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-    button {
-      border: 1px solid #d0d0d0;
-      background: #fff;
       border-radius: 6px;
-      padding: 7px 10px;
-      font-size: 12px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
       cursor: pointer;
     }
-    button.primary { background: #202124; color: #fff; border-color: #202124; }
-    button.danger { color: #b91c1c; border-color: #fecaca; }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
-    #meta {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 10px;
-      color: #555;
-      font-size: 11px;
-    }
-    .pill {
-      background: #fff;
-      border: 1px solid #e0e0dc;
-      border-radius: 6px;
-      padding: 6px 8px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    #tips {
-      display: none;
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      border-radius: 7px;
-      color: #7c2d12;
-      padding: 8px 10px;
-      margin-bottom: 10px;
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    #output {
-      width: 100%;
-      min-height: 380px;
-      max-height: 560px;
-      resize: vertical;
-      overflow: auto;
-      white-space: pre-wrap;
-      border: 1px solid #d9d9d4;
-      border-radius: 7px;
-      background: #fff;
-      padding: 10px;
-      line-height: 1.5;
-      font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
-    }
+    #msg { margin-top: 8px; margin-bottom: 0; }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Social Extractor</h1>
-      <p>&#25171;&#24320;&#21363;&#37319;&#38598;&#65292;&#22270;&#29255;&#25991;&#23383;&#20250; OCR</p>
-    </div>
-  </header>
-  <main>
-    <p id="status" class="loading">&#27491;&#22312;&#25552;&#21462;&#39029;&#38754;&#20869;&#23481;...</p>
-    <div class="toolbar">
-      <button id="copy" class="primary" disabled>&#22797;&#21046;&#26412;&#39029;</button>
-      <button id="copyBatch" disabled>&#22797;&#21046;&#21512;&#38598; Prompt</button>
-      <button id="refresh">&#37325;&#26032;&#37319;&#38598;</button>
-      <button id="clearBatch" class="danger">&#28165;&#31354;&#21512;&#38598;</button>
-    </div>
-    <div id="meta">
-      <div class="pill" id="platform">Platform: -</div>
-      <div class="pill" id="counts">Items: -</div>
-      <div class="pill" id="batchCount">&#21512;&#38598;: 0 &#39029;</div>
-      <div class="pill" id="lastSaved">&#26412;&#39029;: -</div>
-    </div>
-    <div id="tips"></div>
-    <textarea id="output" readonly placeholder="&#25552;&#21462;&#32467;&#26524;&#20250;&#26174;&#31034;&#22312;&#36825;&#37324;"></textarea>
-  </main>
-  <script src="vendor/tesseract/tesseract.min.js"></script>
+  <h1>Social Extractor</h1>
+  <p>主界面已经搬到右侧工作台。点击扩展图标就会直接打开侧栏。</p>
+  <button id="open">打开侧栏工作台</button>
+  <p id="msg"></p>
   <script src="popup.js"></script>
 </body>
 </html>
