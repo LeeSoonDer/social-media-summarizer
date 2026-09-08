@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Social Extractor 工作台</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span id="platformBadge" class="badge">未识别</span>
+      <span id="pageHost" class="host" title="">等待页面</span>
+    </div>
+    <button id="refresh" class="ghost" title="重新采集当前页">刷新</button>
+  </header>
+
+  <p id="status" class="status loading">正在提取页面内容…</p>
+  <div id="staleBanner" class="banner" hidden>当前标签页已变化 · 点「刷新」重新采集</div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="page" role="tab">本页</button>
+    <button class="tab" data-tab="ocr" role="tab">画面</button>
+    <button class="tab" data-tab="stt" role="tab">口播</button>
+    <button class="tab" data-tab="collection" role="tab">集合</button>
+    <button class="tab" data-tab="notes" role="tab">笔记</button>
+  </nav>
+
+  <main>
+    <!-- 本页 -->
+    <section id="panel-page" class="panel is-active">
+      <div class="pills">
+        <span class="pill" id="pillText">正文 —</span>
+        <span class="pill" id="pillOcr">画面字 —</span>
+        <span class="pill" id="pillImages">图片 0</span>
+        <span class="pill" id="pillVideos">视频 0</span>
+      </div>
+      <div class="field">
+        <label>标题</label>
+        <div id="pageTitle" class="value">—</div>
+      </div>
+      <div class="field" id="fieldAuthor" hidden>
+        <label>作者</label>
+        <div id="pageAuthor" class="value">—</div>
+      </div>
+      <div class="field">
+        <label>链接</label>
+        <a id="pageUrl" class="value link" target="_blank" rel="noreferrer noopener">—</a>
+      </div>
+      <div class="field">
+        <label>正文 / Caption</label>
+        <div id="pageBody" class="value body">—</div>
+      </div>
+      <div class="field" id="fieldTags" hidden>
+        <label>标签</label>
+        <div id="pageTags" class="value tags"></div>
+      </div>
+      <div class="field" id="fieldMeta" hidden>
+        <label>提取说明</label>
+        <ul id="pageMeta" class="meta-list"></ul>
+      </div>
+    </section>
+
+    <!-- 画面 -->
+    <section id="panel-ocr" class="panel">
+      <div class="row">
+        <button id="rescan">重新扫描本屏</button>
+        <button id="copyOcr" disabled>复制画面文字</button>
+      </div>
+      <p class="hint">只识别当前视口。轮播请翻到下一张再扫。目前重扫会覆盖上一次结果，多屏合并留到 Phase 4。</p>
+      <pre id="ocrText" class="mono">—</pre>
+    </section>
+
+    <!-- 口播 -->
+    <section id="panel-stt" class="panel">
+      <div class="row">
+        <span class="badge muted" id="sttState">未开始</span>
+        <button id="sttStart" disabled title="下一阶段（Phase 5 口播）">开始转写</button>
+        <button id="sttStop" disabled>停止</button>
+      </div>
+      <p class="hint">本地转写引擎尚未接入（Phase 5）。届时需要你手动点开始，不会自动录音。</p>
+      <div class="field">
+        <label>页面已暴露的字幕</label>
+        <pre id="sttTranscript" class="mono">—</pre>
+      </div>
+      <p class="hint">YouTube 一类平台若有字幕轨道，会直接显示在上面，不需要录音。</p>
+    </section>
+
+    <!-- 集合 -->
+    <section id="panel-collection" class="panel">
+      <div class="row">
+        <button id="copyCollection" disabled>复制集合</button>
+        <button id="clearCollection" class="danger">清空集合</button>
+      </div>
+      <p class="hint" id="collectionCount">集合：0 页</p>
+      <ul id="collectionList" class="list"></ul>
+    </section>
+
+    <!-- 笔记 -->
+    <section id="panel-notes" class="panel">
+      <textarea class="note-input" rows="2" placeholder="记一句，回车即存到收集箱（下一阶段开放）" disabled></textarea>
+      <div class="empty">
+        <p class="empty-title">笔记在下一阶段（Phase 2）</p>
+        <p class="hint">届时：输入框回车即存到「收集箱」，自动带上当前页 URL 和标题；同一 URL 再打开能看到旧笔记；清空集合不会删掉笔记。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottombar">
+    <button id="copyPage" class="primary" disabled>复制本页</button>
+    <button id="toNote" disabled title="下一阶段（Phase 2 笔记）">丢进当前笔记</button>
+    <button id="copyAi" disabled>复制给 AI</button>
+  </footer>
+
+  <script src="vendor/tesseract/tesseract.min.js"></script>
+  <script src="lib/ocr.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
