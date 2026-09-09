@@ -29,6 +29,7 @@
   <main>
     <!-- 本页 -->
     <section id="panel-page" class="panel is-active">
+      <button id="hasNotes" class="note-flag" hidden>本页已有笔记 · 0</button>
       <div class="pills">
         <span class="pill" id="pillText">正文 —</span>
         <span class="pill" id="pillOcr">画面字 —</span>
@@ -124,15 +125,31 @@
     </section>
   </main>
 
+  <div class="aibar">
+    <label class="ai-field">
+      稿件
+      <select id="aiMode" title="复制给 AI 时用哪一档">
+        <option value="lean">瘦身</option>
+        <option value="full">全量</option>
+      </select>
+    </label>
+    <label class="ai-check">
+      <input type="checkbox" id="withNotes" />
+      附带我的笔记
+    </label>
+    <span id="aiModeHint" class="ai-hint"></span>
+  </div>
+
   <footer class="bottombar">
     <button id="copyPage" class="primary" disabled>复制本页</button>
-    <button id="toNote" disabled title="下一阶段（Phase 2 笔记）">丢进当前笔记</button>
+    <button id="toNote" disabled title="把本页瘦身稿追加到本页笔记">丢进当前笔记</button>
     <button id="copyAi" disabled>复制给 AI</button>
   </footer>
 
   <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="lib/ocr.js"></script>
   <script src="lib/store.js"></script>
+  <script src="lib/format.js"></script>
   <script src="lib/notes.js"></script>
   <script src="sidepanel.js"></script>
 </body>

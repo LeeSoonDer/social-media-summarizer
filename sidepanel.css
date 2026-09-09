@@ -283,3 +283,44 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .note-meta a:hover { color: #2563eb; text-decoration: underline; }
 .note-meta .spacer { flex: 1; }
 .note-meta .saved-hint { color: #15803d; }
+
+/* ---------- 稿件档位条 ---------- */
+
+.aibar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #fff;
+  border-top: 1px solid #e2e2dc;
+  font-size: 11px;
+  color: #666;
+  flex-wrap: wrap;
+}
+.ai-field { display: flex; align-items: center; gap: 4px; }
+.aibar select {
+  border: 1px solid #e0e0dc;
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 11px;
+  font-family: inherit;
+  background: #fff;
+  color: #161616;
+}
+.ai-check { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.ai-check input { margin: 0; cursor: pointer; }
+.ai-hint { flex: 1; min-width: 0; color: #999; text-align: right; }
+
+.note-flag {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  border-radius: 7px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.note-flag:hover:not(:disabled) { background: #dbeafe; }
