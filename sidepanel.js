@@ -161,77 +161,52 @@ async function extractFromTab(tabId) {
   }
 }
 
-/* ---------- 输出格式（迁自 popup.js，Phase 3 再定两档稿） ---------- */
+/* ---------- 给 AI 的稿（lib/format.js 定形状，这里只管取材） ---------- */
 
-function section(title, value) {
-  if (Array.isArray(value)) {
-    if (!value.length) return "";
-    return `## ${title}\n${value.map((item) => `- ${item}`).join("\n")}`;
-  }
-  if (!value) return "";
-  return `## ${title}\n${value}`;
+let settings = { aiPromptMode: "lean", commentsEnabled: false };
+
+function currentMode() {
+  return settings.aiPromptMode === "full" ? "full" : "lean";
 }
 
-function buildSuggestedPrompt(content) {
-  const ocrHint = content.ocrText
-    ? "Use OCR Text From Screenshot as the primary source for words embedded in images."
-    : "Only use the provided Title and Main Text / Caption if OCR text is empty.";
-
-  return [
-    "Please analyze the extracted social media post content below.",
-    "Only use these sections: Title, Main Text / Caption, and OCR Text From Screenshot.",
-    "Return:",
-    "1. concise summary",
-    "2. key points",
-    "3. important context",
-    "4. claims or advice that should be verified",
-    "5. actionable takeaways",
-    ocrHint,
-  ].join("\n");
+// 「附带我的笔记」勾上时才把本页相关笔记塞进稿里。
+function notesForDraft(url) {
+  if (!$("withNotes").checked) return [];
+  return SocialNotes.relatedFor(url);
 }
 
-function buildBatchPrompt() {
-  return [
-    "Please analyze the collected social media post content below.",
-    "Only use these sections from each item: Title, Main Text / Caption, and OCR Text From Screenshot.",
-    "The content may come from multiple carousel slides, screenshots, or related posts.",
-    "Deduplicate repeated lines and merge the information.",
-    "Use OCR Text From Screenshot as the primary source for text embedded in images.",
-    "Return:",
-    "1. concise summary",
-    "2. key points",
-    "3. important context",
-    "4. claims or advice that should be verified",
-    "5. actionable takeaways",
-  ].join("\n");
+// 纯稿，不带前言：复制本页、以及「丢进当前笔记」垫底用的瘦身稿。
+function leanDraft(content) {
+  return SocialFormat.buildPageDraft(content, { mode: "lean", withPreamble: false });
 }
 
-function formatExtracted(content, index = null) {
-  const heading = index === null ? "# Extracted Social Content" : `# Collected Item ${index}`;
-  return [
-    heading,
-    section("Title", content.title),
-    section("Main Text / Caption", content.body),
-    section("OCR Text From Screenshot", content.ocrText),
-  ].filter(Boolean).join("\n\n");
+function pageDraftForAi(content) {
+  return SocialFormat.buildPageDraft(content, {
+    mode: currentMode(),
+    notes: notesForDraft(content.url),
+  });
 }
 
-function formatSingleOutput(content) {
-  return [formatExtracted(content), "## Suggested AI Prompt", buildSuggestedPrompt(content)].join("\n\n");
+function collectionDraftForAi(items) {
+  return SocialFormat.buildCollectionDraft(items, {
+    mode: currentMode(),
+    notesFor: (item) => notesForDraft(item.url),
+  });
 }
 
-function formatBatchOutput(items) {
-  return [
-    "# Social Extractor Collection",
-    `Collected Items: ${items.length}`,
-    `Generated At: ${new Date().toISOString()}`,
-    "",
-    "## Batch AI Prompt",
-    buildBatchPrompt(),
-    "",
-    ...items.map((item, index) => formatExtracted(item, index + 1)),
-  ].join("\n\n");
+function renderAiModeHint() {
+  $("aiModeHint").textContent =
+    currentMode() === "lean"
+      ? "标题 + 正文 + 画面字 + 口播"
+      : "再加平台 / 链接 / 作者 / 标签 / 图片 / 视频 / 采集时间";
 }
+
+async function loadSettings() {
+  settings = await SocialStore.getSettings();
+  $("aiMode").value = currentMode();
+  renderAiModeHint();
+}
+
 
 /* ---------- 集合 ---------- */
 
@@ -409,7 +384,16 @@ function renderContent(content) {
   $("copyPage").disabled = false;
   $("copyAi").disabled = false;
   $("toNote").disabled = false;
+  renderNoteFlag();
   renderCollection();
+}
+
+// 只改这一个徽标，不碰笔记列表（笔记列表只由笔记自己的事件驱动）。
+function renderNoteFlag() {
+  const flag = $("hasNotes");
+  const count = SocialNotes.relatedFor(currentPageRef.url).length;
+  flag.hidden = count === 0;
+  flag.textContent = `本页已有笔记 · ${count}`;
 }
 
 function resetContent() {
@@ -455,6 +439,8 @@ async function run() {
     if (!content || content.error) {
       throw new Error(content?.message || "提取失败");
     }
+    // 在这里盖采集时间戳：全量稿要用它，而 upsertCollection 只会给存进集合的那份盖章。
+    content.capturedAt = new Date().toISOString();
 
     try {
       setStatus("正在识别画面文字…", "loading");
@@ -525,7 +511,10 @@ async function rescanScreen() {
 function setPageRef(ref) {
   const changed = ref.url !== currentPageRef.url;
   currentPageRef = { url: ref.url || "", title: ref.title || "", platform: ref.platform || "" };
-  if (changed) SocialNotes.render();
+  if (changed) {
+    SocialNotes.render();
+    renderNoteFlag();
+  }
 }
 
 async function checkStale() {
@@ -568,6 +557,18 @@ for (const tabButton of document.querySelectorAll(".tab")) {
 
 $("toNote").addEventListener("click", () => SocialNotes.dropIntoNote());
 
+$("hasNotes").addEventListener("click", () => switchTab("notes"));
+
+$("aiMode").addEventListener("change", async (event) => {
+  settings.aiPromptMode = event.target.value === "full" ? "full" : "lean";
+  renderAiModeHint();
+  try {
+    await SocialStore.saveSettings({ aiPromptMode: settings.aiPromptMode });
+  } catch (err) {
+    setStatus(humanError(err), "error");
+  }
+});
+
 // 侧栏被关掉 / 隐藏时尽力把没到点的那次保存写出去。
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") SocialNotes.flush();
@@ -580,11 +581,17 @@ $("refresh").addEventListener("click", run);
 $("rescan").addEventListener("click", rescanScreen);
 
 $("copyPage").addEventListener("click", () => {
-  copyText(currentContent ? formatExtracted(currentContent) : "", "已复制本页文本。");
+  copyText(currentContent ? leanDraft(currentContent) : "", "已复制本页文本。");
 });
 
 $("copyAi").addEventListener("click", () => {
-  copyText(currentContent ? formatSingleOutput(currentContent) : "", "已复制本页 + AI 提示词。");
+  if (!currentContent) {
+    setStatus("还没采到本页内容。先点顶部「刷新」。", "error");
+    return;
+  }
+  const label = currentMode() === "lean" ? "瘦身稿" : "全量稿";
+  const withNotes = $("withNotes").checked ? "，含我的笔记" : "";
+  copyText(pageDraftForAi(currentContent), `已复制本页${label}${withNotes}。`);
 });
 
 $("copyOcr").addEventListener("click", () => {
@@ -593,7 +600,8 @@ $("copyOcr").addEventListener("click", () => {
 
 $("copyCollection").addEventListener("click", async () => {
   await loadCollection();
-  await copyText(formatBatchOutput(collection), `已复制集合共 ${collection.length} 页。`);
+  const label = currentMode() === "lean" ? "瘦身稿" : "全量稿";
+  await copyText(collectionDraftForAi(collection), `已按采集顺序复制集合 ${collection.length} 条（${label}）。`);
 });
 
 $("clearCollection").addEventListener("click", async () => {
@@ -612,9 +620,12 @@ SocialNotes.init({
   hostOf,
   shortTime,
   formatTime,
-  formatExtracted,
+  formatExtracted: leanDraft,
   switchTab,
   getPageRef: () => currentPageRef,
   getPageIdentity: currentPageIdentity,
   getContent: () => currentContent,
-}).then(run);
+  onNotesChanged: renderNoteFlag,
+})
+  .then(loadSettings)
+  .then(run);
