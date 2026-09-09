@@ -185,12 +185,24 @@ function extractUsefulVisibleText(root = document, limit = 120) {
   return cleanVisibleLines(textOf(root), limit).join("\n");
 }
 
+// 记录正文最后是从哪条路来的。社媒 DOM 常改版，选择器烂掉时用户要能一眼看见，
+// 而不是对着一段莫名其妙的界面文字纳闷。每次提取前由 extractContent 重置。
+let bodyStrategy = "";
+
 function preferLongerText(primary, fallback) {
   const a = String(primary || "").trim();
   const b = String(fallback || "").trim();
-  if (!a) return b;
-  if (!b) return a;
-  return b.length > a.length * 1.4 ? b : a;
+  if (!a) {
+    bodyStrategy = b ? "可见文字兜底" : "";
+    return b;
+  }
+  if (!b) {
+    bodyStrategy = "平台选择器";
+    return a;
+  }
+  const useFallback = b.length > a.length * 1.4;
+  bodyStrategy = useFallback ? "可见文字兜底" : "平台选择器";
+  return useFallback ? b : a;
 }
 
 function extractLinks(limit = 20) {
@@ -199,8 +211,35 @@ function extractLinks(limit = 20) {
     .filter((href) => href && href.startsWith("http") && !href.includes(location.hostname)), limit);
 }
 
-function extractVisibleComments(_selectors) {
-  return [];
+// 评论默认关（噪音大）。设置页打开后，侧栏在 extract 消息里带 options.comments。
+let commentsEnabled = false;
+
+function extractVisibleComments(selectors, limit = 30) {
+  if (!commentsEnabled) return [];
+  const out = [];
+  for (const selector of selectors || []) {
+    for (const node of document.querySelectorAll(selector)) {
+      const text = textOf(node);
+      if (!isUsefulText(text, 4)) continue;
+      out.push(text.replace(/\s+/g, " ").slice(0, 500));
+      if (out.length >= limit * 3) break;
+    }
+    if (out.length) break; // 第一个能出货的选择器就够了，别把几套选择器的结果混在一起
+  }
+  return unique(out, limit);
+}
+
+function bodySourceNote(data, body) {
+  if (!body) {
+    return "没有取到正文：平台选择器、og/meta、可见文字兜底都是空的。可能是没登录、内容还没加载完，或者这个站改版了。";
+  }
+  if (data.body) {
+    if (bodyStrategy === "可见文字兜底") {
+      return "正文来自可见文字兜底（平台选择器取到的更短），可能混进了界面文字。";
+    }
+    return "正文来自平台选择器。";
+  }
+  return "正文来自 og/meta 摘要：平台选择器没取到，内容通常是被截断的简介。";
 }
 
 function baseResult(platform, data) {
@@ -219,7 +258,7 @@ function baseResult(platform, data) {
     images: data.images || extractImages(),
     videos: data.videos || extractVideos(),
     links: data.links || extractLinks(),
-    metadata: data.metadata || [],
+    metadata: [bodySourceNote(data, body), ...(data.metadata || [])],
   };
 }
 
@@ -676,6 +715,7 @@ function extractGeneric() {
 }
 
 async function extractContent() {
+  bodyStrategy = "";
   const platform = detectPlatform();
   const extractors = {
     xiaohongshu: extractXiaohongshu,
@@ -698,6 +738,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false;
   }
   if (message.action === "extract") {
+    commentsEnabled = message.options?.comments === true;
     extractContent()
       .then(sendResponse)
       .catch((err) => sendResponse({ error: "extract_failed", message: String(err?.message || err) }));
