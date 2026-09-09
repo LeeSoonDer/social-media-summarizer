@@ -98,11 +98,29 @@
 
     <!-- 笔记 -->
     <section id="panel-notes" class="panel">
-      <textarea class="note-input" rows="2" placeholder="记一句，回车即存到收集箱（下一阶段开放）" disabled></textarea>
-      <div class="empty">
-        <p class="empty-title">笔记在下一阶段（Phase 2）</p>
-        <p class="hint">届时：输入框回车即存到「收集箱」，自动带上当前页 URL 和标题；同一 URL 再打开能看到旧笔记；清空集合不会删掉笔记。</p>
+      <textarea id="noteInput" class="note-input" rows="2"
+        placeholder="记一句，回车存进收集箱（Shift+Enter 换行）"></textarea>
+
+      <div class="row folder-row">
+        <select id="folderSelect" title="看哪个文件夹的笔记"></select>
+        <button id="folderNew" title="新建文件夹">新建</button>
+        <button id="folderRename" title="给当前文件夹改名">改名</button>
+        <button id="folderDelete" class="danger" title="删除当前文件夹，里面的笔记回收集箱">删除</button>
       </div>
+
+      <div id="folderEditor" class="row" hidden>
+        <input id="folderName" type="text" maxlength="40" placeholder="文件夹名" />
+        <button id="folderSave" class="primary">保存</button>
+        <button id="folderCancel">取消</button>
+      </div>
+
+      <p id="notesHint" class="hint"></p>
+
+      <h3 class="group-title">本页相关 <span id="relatedCount" class="count">0</span></h3>
+      <ul id="relatedNotes" class="list notes"></ul>
+
+      <h3 class="group-title" id="otherTitle">收集箱里的其它笔记</h3>
+      <ul id="otherNotes" class="list notes"></ul>
     </section>
   </main>
 
@@ -114,6 +132,8 @@
 
   <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="lib/ocr.js"></script>
+  <script src="lib/store.js"></script>
+  <script src="lib/notes.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>
