@@ -3,7 +3,6 @@
 // 口播分区仍是空状态（Phase 5）。
 
 const COLLECTION_KEY = "socialExtractorCollection";
-const MAX_COLLECTION_ITEMS = 80;
 
 const PLATFORM_LABELS = {
   xiaohongshu: "小红书",
@@ -129,6 +128,19 @@ async function currentPageIdentity() {
   return { url, title: tabTitle, platform: platformFromUrl(url) };
 }
 
+// 扩展页里用 blob + <a download> 存文件，不需要 downloads 权限。
+function downloadText(filename, text, mime = "text/markdown;charset=utf-8") {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function copyText(text, okMessage) {
   if (!text) {
     setStatus("没有可复制的内容。", "error");
@@ -153,11 +165,12 @@ async function ensureContentScript(tabId) {
 }
 
 async function extractFromTab(tabId) {
+  const message = { action: "extract", options: { comments: settings.commentsEnabled === true } };
   try {
-    return await chrome.tabs.sendMessage(tabId, { action: "extract" });
+    return await chrome.tabs.sendMessage(tabId, message);
   } catch {
     await ensureContentScript(tabId);
-    return await chrome.tabs.sendMessage(tabId, { action: "extract" });
+    return await chrome.tabs.sendMessage(tabId, message);
   }
 }
 
@@ -201,11 +214,23 @@ function renderAiModeHint() {
       : "再加平台 / 链接 / 作者 / 标签 / 图片 / 视频 / 采集时间";
 }
 
+function maxCollectionItems() {
+  const value = Number(settings.maxCollectionItems);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 80;
+}
+
 async function loadSettings() {
   settings = await SocialStore.getSettings();
   $("aiMode").value = currentMode();
   renderAiModeHint();
+  SocialOcr.setLangs(settings.ocrLang);
 }
+
+// 设置页改了东西之后，侧栏不重开也要跟上。
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[SocialStore.SETTINGS_KEY]) return;
+  loadSettings().catch(() => {});
+});
 
 
 /* ---------- 集合 ---------- */
@@ -271,15 +296,16 @@ async function upsertCollection(content) {
     updatedAt: now,
     fingerprint,
   });
-  if (collection.length > MAX_COLLECTION_ITEMS) {
-    collection = collection.slice(collection.length - MAX_COLLECTION_ITEMS);
+  const cap = maxCollectionItems();
+  if (collection.length > cap) {
+    collection = collection.slice(collection.length - cap);
   }
   await saveCollection();
   return "added";
 }
 
 function renderCollection() {
-  $("collectionCount").textContent = `集合：${collection.length} 页（上限 ${MAX_COLLECTION_ITEMS}）`;
+  $("collectionCount").textContent = `集合：${collection.length} 页（上限 ${maxCollectionItems()}）`;
   $("copyCollection").disabled = collection.length === 0;
 
   const list = $("collectionList");
@@ -402,8 +428,9 @@ function renderContent(content) {
 
   renderOcr(content.ocrText);
 
-  $("sttTranscript").textContent = content.transcript || "—";
-  $("sttState").textContent = content.transcript ? "已有页面字幕" : "未开始";
+  $("sttTranscript").textContent =
+    content.transcript || "这一页没有可读的字幕轨道。去「画面」分区一边播一边「再扫一屏」，抓画面上的字。";
+  $("sttState").textContent = content.transcript ? "已取到页面字幕" : "没有字幕";
 
   $("copyPage").disabled = false;
   $("copyAi").disabled = false;
@@ -667,6 +694,7 @@ SocialNotes.init({
   shortTime,
   formatTime,
   formatExtracted: leanDraft,
+  downloadText,
   switchTab,
   getPageRef: () => currentPageRef,
   getPageIdentity: currentPageIdentity,

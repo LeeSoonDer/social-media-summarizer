@@ -77,16 +77,23 @@
     <!-- 口播 -->
     <section id="panel-stt" class="panel">
       <div class="row">
-        <span class="badge muted" id="sttState">未开始</span>
-        <button id="sttStart" disabled title="下一阶段（Phase 5 口播）">开始转写</button>
-        <button id="sttStop" disabled>停止</button>
+        <span class="badge muted" id="sttState">没有字幕</span>
       </div>
-      <p class="hint">本地转写引擎尚未接入（Phase 5）。届时需要你手动点开始，不会自动录音。</p>
       <div class="field">
-        <label>页面已暴露的字幕</label>
+        <label>视频里说的话</label>
         <pre id="sttTranscript" class="mono">—</pre>
       </div>
-      <p class="hint">YouTube 一类平台若有字幕轨道，会直接显示在上面，不需要录音。</p>
+      <p class="hint">
+        这一栏只显示<strong>页面自己提供的字幕轨道</strong>（YouTube 等平台有，取到就直接显示，不需要录音）。
+      </p>
+      <p class="hint">
+        本扩展<strong>不做录音转写</strong>：本地语音模型要额外下载几百 MB、中文准确率还不稳，
+        代价与收益不划算，已明确不做。
+      </p>
+      <p class="hint">
+        没有字幕轨道时怎么办：中文短视频大多把字幕<strong>烧录在画面上</strong>，
+        去「画面」分区一边播一边点「再扫一屏」，就能把这些字抓成文本。
+      </p>
     </section>
 
     <!-- 集合 -->
@@ -108,6 +115,7 @@
         <select id="folderSelect" title="看哪个文件夹的笔记"></select>
         <button id="folderNew" title="新建文件夹">新建</button>
         <button id="folderRename" title="给当前文件夹改名">改名</button>
+        <button id="folderExport" title="把当前文件夹的笔记合并导出成一份 .md">导出</button>
         <button id="folderDelete" class="danger" title="删除当前文件夹，里面的笔记回收集箱">删除</button>
       </div>
 

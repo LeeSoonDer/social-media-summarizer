@@ -324,3 +324,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 12px;
 }
 .note-flag:hover:not(:disabled) { background: #dbeafe; }
+
+button.link-btn.plain { color: #6b7280; }
+button.link-btn.plain:hover:not(:disabled) { color: #2563eb; }
