@@ -1,6 +1,6 @@
-// Social Extractor 侧栏工作台 · Phase 1
-// 提取 / OCR / 集合 / 复制逻辑迁自 popup.js，数据形状保持兼容。
-// 笔记与口播分区在本阶段只做可用空状态。
+// Social Extractor 侧栏工作台
+// 本页 / 画面 / 集合 / 复制的编排。笔记分区在 lib/notes.js，存储层在 lib/store.js。
+// 口播分区仍是空状态（Phase 5）。
 
 const COLLECTION_KEY = "socialExtractorCollection";
 const MAX_COLLECTION_ITEMS = 80;
@@ -22,6 +22,11 @@ let currentContent = null;
 let currentTabId = null;
 let collection = [];
 let busy = false;
+
+// 页面身份和提取结果分开：currentContent 是「上次采到了什么」，
+// currentPageRef 是「现在停在哪一页」。SPA 内换帖时后者会变、前者不会，
+// 笔记必须绑后者，否则会静默记到上一条帖子名下。
+let currentPageRef = { url: "", title: "", platform: "" };
 
 /* ---------- 小工具 ---------- */
 
@@ -74,10 +79,54 @@ function formatTime(iso) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function shortTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const sameDay = date.toDateString() === new Date().toDateString();
+  return date.toLocaleString("zh-CN", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(sameDay ? {} : { month: "2-digit", day: "2-digit" }),
+  });
+}
+
 async function getActiveTab() {
   let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   return tab || null;
+}
+
+// 只在 content.js 够不着时兜底给个平台名（笔记要记 platform，但可能还没采过页）。
+function platformFromUrl(url) {
+  const host = hostOf(url);
+  if (!host) return "";
+  if (host.includes("xiaohongshu.com")) return "xiaohongshu";
+  if (host.includes("instagram.com")) return "instagram";
+  if (host === "x.com" || host.includes("twitter.com")) return "x-twitter";
+  if (host.includes("reddit.com")) return "reddit";
+  if (host.includes("youtube.com") || host === "youtu.be") return "youtube";
+  if (host.includes("tiktok.com")) return "tiktok";
+  if (host.includes("threads.net") || host.includes("threads.com")) return "threads";
+  if (host.includes("linkedin.com")) return "linkedin";
+  if (host.includes("facebook.com")) return "facebook";
+  return "generic";
+}
+
+// 保存笔记时的唯一真相：当场再问一次当前标签页，不信任缓存变量。
+// 只有当活动页确实就是上次采过的那一页，才沿用提取器给的精确标题与平台。
+async function currentPageIdentity() {
+  const tab = await getActiveTab();
+  const url = tab?.url || currentPageRef.url || "";
+  const tabTitle = tab?.title || "";
+  if (currentContent && url && SocialStore.sameSource(currentContent.url, url)) {
+    return {
+      url,
+      title: currentContent.title || tabTitle,
+      platform: currentContent.platform || platformFromUrl(url),
+    };
+  }
+  return { url, title: tabTitle, platform: platformFromUrl(url) };
 }
 
 async function copyText(text, okMessage) {
@@ -359,6 +408,7 @@ function renderContent(content) {
 
   $("copyPage").disabled = false;
   $("copyAi").disabled = false;
+  $("toNote").disabled = false;
   renderCollection();
 }
 
@@ -367,6 +417,7 @@ function resetContent() {
   $("copyPage").disabled = true;
   $("copyAi").disabled = true;
   $("copyOcr").disabled = true;
+  $("toNote").disabled = true;
 }
 
 /* ---------- 主流程 ---------- */
@@ -378,6 +429,8 @@ async function run() {
   $("rescan").disabled = true;
 
   try {
+    // 采集会重渲染集合区并耗时数秒，先把没到点的笔记落盘，别让它跨过这段。
+    await SocialNotes.flush();
     await loadCollection();
 
     const tab = await getActiveTab();
@@ -386,6 +439,8 @@ async function run() {
       return;
     }
     currentTabId = tab.id;
+    // 早于 extract / OCR 就把页面身份定下来，中途用户跑去笔记区打字也有正确的 URL 可绑。
+    setPageRef({ url: tab.url, title: tab.title || "", platform: platformFromUrl(tab.url) });
     $("pageHost").textContent = hostOf(tab.url) || "—";
     $("staleBanner").hidden = true;
 
@@ -415,6 +470,11 @@ async function run() {
     }
 
     renderContent(content);
+    setPageRef({
+      url: content.url || tab.url,
+      title: content.title || tab.title || "",
+      platform: content.platform || platformFromUrl(tab.url),
+    });
     const result = await upsertCollection(content);
     setStatus(result === "added" ? "已采集本页并写入集合。" : "本页已在集合里，已更新记录。", "ok");
   } catch (err) {
@@ -461,9 +521,17 @@ async function rescanScreen() {
 
 /* ---------- 标签页变化只提示，不自动重采（OCR 很贵） ---------- */
 
+// 页面身份变了就换「本页相关」那一段。笔记区正在打字时不重绘，等 blur 再补。
+function setPageRef(ref) {
+  const changed = ref.url !== currentPageRef.url;
+  currentPageRef = { url: ref.url || "", title: ref.title || "", platform: ref.platform || "" };
+  if (changed) SocialNotes.render();
+}
+
 async function checkStale() {
   const tab = await getActiveTab();
   if (!tab?.url) return;
+  setPageRef({ url: tab.url, title: tab.title || "", platform: platformFromUrl(tab.url) });
   const changed = !currentContent || tab.url !== currentContent.url || tab.id !== currentTabId;
   $("staleBanner").hidden = !changed;
   if (changed) $("pageHost").textContent = hostOf(tab.url) || "—";
@@ -473,23 +541,40 @@ chrome.tabs.onActivated.addListener(() => {
   checkStale();
 });
 
+// info.url 覆盖 SPA 内导航（小红书 / IG 换帖不会再触发 complete）。
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (info.status === "complete" && tab.active) checkStale();
+  if (!tab.active) return;
+  if (info.url || info.status === "complete") checkStale();
 });
 
 /* ---------- 事件绑定 ---------- */
 
+function switchTab(target) {
+  for (const el of document.querySelectorAll(".tab")) {
+    el.classList.toggle("is-active", el.dataset.tab === target);
+  }
+  for (const panel of document.querySelectorAll(".panel")) {
+    panel.classList.toggle("is-active", panel.id === `panel-${target}`);
+  }
+  if (target === "notes") SocialNotes.render();
+}
+
 for (const tabButton of document.querySelectorAll(".tab")) {
-  tabButton.addEventListener("click", () => {
-    for (const el of document.querySelectorAll(".tab")) {
-      el.classList.toggle("is-active", el === tabButton);
-    }
-    const target = tabButton.dataset.tab;
-    for (const panel of document.querySelectorAll(".panel")) {
-      panel.classList.toggle("is-active", panel.id === `panel-${target}`);
-    }
+  tabButton.addEventListener("click", async () => {
+    await SocialNotes.flush();
+    switchTab(tabButton.dataset.tab);
   });
 }
+
+$("toNote").addEventListener("click", () => SocialNotes.dropIntoNote());
+
+// 侧栏被关掉 / 隐藏时尽力把没到点的那次保存写出去。
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") SocialNotes.flush();
+});
+window.addEventListener("pagehide", () => {
+  SocialNotes.flush();
+});
 
 $("refresh").addEventListener("click", run);
 $("rescan").addEventListener("click", rescanScreen);
@@ -512,9 +597,24 @@ $("copyCollection").addEventListener("click", async () => {
 });
 
 $("clearCollection").addEventListener("click", async () => {
+  // 只动 collection 那把 key。笔记与文件夹在另外两张表里，这里碰不到。
   collection = [];
   await saveCollection();
   setStatus("集合已清空（笔记不受影响）。", "ok");
 });
 
-run();
+// 笔记模块要的东西显式传进去，不靠跨文件的隐式全局。
+// 先把笔记读出来再跑采集：run() 中途会调 setPageRef -> SocialNotes.render()。
+SocialNotes.init({
+  $,
+  setStatus,
+  humanError,
+  hostOf,
+  shortTime,
+  formatTime,
+  formatExtracted,
+  switchTab,
+  getPageRef: () => currentPageRef,
+  getPageIdentity: currentPageIdentity,
+  getContent: () => currentContent,
+}).then(run);
