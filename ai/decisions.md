@@ -76,3 +76,21 @@ Decision: 顶部输入框的 Enter 处理首行 `if (e.isComposing || e.keyCode 
 Reason: 这是中文 UI 产品，用户全程用拼音。候选窗开着时按 Enter 是「选词」，若直接保存会把半截拼音存成笔记并打断输入。
 Tradeoff: 无。
 Future Implications: 之后任何绑 Enter 或 input 的输入框都要照做。
+
+## 2026-09-09 - 笔记的 md 导出推迟到 Phase 6
+Decision: 架构文档 §8 的 Phase 2 交付清单里有「单条 / 文件夹导出 md」，CLAUDE.md 的 Phase 2 没有、且把「导出/导入 JSON」放在 Phase 6 设置页。经用户确认：**按 CLAUDE.md 走，导出统一在 Phase 6 做**。
+Reason: 两份文档在这一项上不一致，用户拍板以 CLAUDE.md 为准。
+Tradeoff: Phase 2 结束时笔记只能看不能导出，数据仍在 chrome.storage.local 里，不会丢。
+Future Implications: **开 Phase 6 时必须提醒用户这笔欠账**，与「设置页：稿件档位、评论开关、导出/导入 JSON、下线 Gemini 主路径」一起做，范围是：单条笔记导出 .md、当前文件夹合并导出 .md、全部 JSON 备份与导入。
+
+## 2026-09-09 - 口播与可见字幕在稿里只出一段
+Decision: `lib/format.js` 的 `speechOf()` 优先取 `content.speech`（Phase 5 的本地转写），没有才退回 `content.transcript`（平台字幕轨道），只渲染一个「## 口播 / 字幕」段并注明来源。
+Reason: CLAUDE.md 把「口播」列在瘦身档、「可见字幕」列在全量档。若各渲染一段，全量稿里同一段文字会出现两次，白白吃掉模型上下文还制造矛盾。两者语义相同（都是「视频里说的话」），差别只在来源。
+Tradeoff: 全量稿看不到「这条同时有官方字幕和本地转写」这种细节。真需要时再加一行来源列表。
+Future Implications: Phase 5 只要往 `content.speech` / `content.speechSource` 里填值，稿件格式不用改。
+
+## 2026-09-09 - 瘦身稿不带平台与链接
+Decision: 瘦身档严格按 CLAUDE.md，只有 标题 + 正文 + 画面文字 + 口播，不含 platform / url / 采集时间。
+Reason: CLAUDE.md Phase 3 明写「全量：**再加** platform、url、author、tags、images、videos、可见字幕、采集时间」，即这些不属于瘦身。
+Tradeoff: 架构文档 §8 Phase 3 有一句「输出开头带平台、URL、采集时间」，与此冲突。以 CLAUDE.md 为准，已向用户指出。要改的话是 `buildPageDraft` 里把 `页面信息` 块提到 mode 判断之外，一行的事。
+Future Implications: 两份文档再冲突时，仍以 CLAUDE.md 为执行依据，并在汇报里点名冲突。
