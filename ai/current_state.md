@@ -1,13 +1,30 @@
 # 当前状态
 
-版本：0.7.0 · 分支 `feat/sidepanel` · 更新于 2026-09-10
+版本：0.8.0 · 分支 `feat/sidepanel` · 更新于 2026-09-10
 
 ## 三行现状
 
 1. 右侧 Side Panel 工作台五分区可用，原有的平台提取、视口 OCR、集合、复制全在里面，翻页时侧栏常驻。
 2. 笔记最小闭环已通：回车即存收集箱、停键 400ms 自动保存、一层文件夹、「丢进当前笔记」、本页相关聚合。
 3. 复制给 AI 已定稿：瘦身/全量两档 + 固定中文前言 + 可选附带笔记，集合按采集顺序拼接。
-4. 画面已支持多屏追加合并去重与 2x 预处理；只剩口播是空状态（Phase 5）与设置页/导出（Phase 6）。
+4. 画面支持多屏追加合并去重与 2x 预处理；设置页、笔记导出、全量备份已就绪。
+5. 口播（Phase 5）已取消不做，分区改为显示平台字幕并引导去「画面」抓烧录字幕。
+
+## 已完成（Phase 6 · 打磨）
+
+- 设置页 `options.html/js` 重做：稿件档位、评论开关、OCR 语言、集合上限、
+  全量 JSON 导出/导入、Gemini key 标「已停用」并提供清除按钮（不接任何主路径）。
+- 笔记导出：单条 .md、当前文件夹合并 .md（blob + `<a download>`，不需要 downloads 权限）。
+- 评论开关真的接通了：侧栏在 extract 消息里带 `options.comments`，
+  `content.js` 据此决定抓不抓，抓到的只进全量稿。
+- OCR 语言可选，默认 `eng+chi_sim`（不加载 26MB 的 chi_tra），改了会丢弃旧 worker 重建。
+- `content.js` 每次提取都在「提取说明」第一条写明正文来自平台选择器 / og-meta / 可见文字兜底，
+  选择器烂掉时用户一眼能看见。
+- 设置改动通过 `storage.onChanged` 同步到侧栏，不用重开。
+
+## 已取消（Phase 5 · 口播）
+
+不做录音转写。分区保留，显示平台字幕轨道；没有字幕时引导去「画面」用「再扫一屏」抓烧录字幕。
 
 ## 已完成（Phase 4 · 画面增强）
 
@@ -57,17 +74,17 @@
 - Tesseract 语言包打包在 `vendor/`，扩展体积偏大。
 - `host_permissions` 已升为 `<all_urls>`：侧栏拿不到 `activeTab`，`tabs.captureVisibleTab` 只认 `<all_urls>` 或 `activeTab`，否则侧栏里 OCR 必挂。
 
-## 欠账（开 Phase 6 时必须做）
+## 欠账
 
-- 笔记导出：单条 .md、当前文件夹合并 .md、全部 JSON 备份 / 导入。
-  Phase 2 按 CLAUDE.md 跳过了，用户已确认推到 Phase 6，见 `ai/decisions.md` 2026-09-09 那条。
+（无。笔记导出已在 Phase 6 补齐。）
 
 ## 下一步
 
-Phase 5 口播，分两步且先 UI 后引擎：
-5a 状态机（未开始 / 进行中 / 已完成）、开始与停止、失败说人话。
-5b 引擎按 Google 的 MV3 模式：service worker 里用户点击后 `getMediaStreamId`，
-offscreen document 里 `getUserMedia` 吃这个 id，把 tab 声音接回 AudioContext destination
-避免标签页静音；本地 Whisper 按需加载，禁止把模型权重打进 git。
-字幕优先于 STT，YouTube 的 captionTracks 逻辑留在 content.js 不动。
-转写结果写进 `content.speech`（`lib/format.js` 已经预留，会自动优先于平台字幕）。
+个人完成品已达成，没有必须做的下一阶段。真要继续，按收益排序：
+
+1. **选择器修复**（唯一我做不了的）：需要你在出问题的页面上 F12 → 复制 outerHTML 存成文件给我，
+   否则是盲改，可能把现在能用的弄坏。「提取说明」那一行就是用来发现哪个站开始烂的。
+2. **「跟着视频扫」**：定时抽帧 OCR 抓烧录字幕，复用 Phase 4 管线，约 150 行、零新权限，
+   是口播的低成本替代，覆盖大多数中文短视频。
+3. 体积：`vendor/tesseract` 99MB，其中 chi_tra 26MB。运行时已不默认加载，
+   要真减体积得把语言包挪出仓库改成按需下载。

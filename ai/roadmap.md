@@ -1,60 +1,33 @@
 # Roadmap
 
-> 2026-09-09 起，本文件的旧分期（Phase 2 默认调 Gemini、Phase 3 抽帧送 Gemini、Phase 5 录音送 Gemini）已作废。
-> 现行分期以 `ai/product_architecture.md` 第 8 节与根目录 `CLAUDE.md` 为准：
-> Phase 1 侧栏换壳（已完成）→ Phase 2 笔记 → Phase 3 复制给 AI 定稿 → Phase 4 画面增强 → Phase 5 口播 → Phase 6 打磨。
-> 云模型相关能力降级为 Phase 7 可选，且必须用户逐次确认。
+以 `CLAUDE.md` 与 `ai/product_architecture.md` 第 8 节为准。截至 2026-09-10，个人完成品已达成。
 
-## 历史记录（保留备查）
+## Phase 1 · 侧栏工作台 —— 已完成（0.5.0）
+点图标开右侧 Side Panel，五分区（本页 / 画面 / 口播 / 集合 / 笔记）+ 底栏三键。
+弹窗降级为跳板。原有提取、视口 OCR、集合、复制全部迁入。
 
-## Phase 1 - Extension Skeleton and Text Extraction
-Status: Completed.
+## Phase 2 · 笔记最小闭环 —— 已完成（0.6.0）
+folders / notes 分表，固定 inbox。回车即存不问文件夹，停键 400ms 自动保存，
+一层文件夹增删改，本页相关聚合（按归一化后的内容 id 匹配），「丢进当前笔记」。
 
-Goals:
-- Manifest V3 setup.
-- Popup UI.
-- Content script injection.
-- Xiaohongshu and Instagram detection.
-- Basic text extraction.
+## Phase 3 · 复制给 AI 定稿 —— 已完成（0.6.1）
+瘦身 / 全量两档 + 固定中文前言 + 可选附带笔记，集合按采集顺序拼接。
 
-## Phase 2 - Gemini API and Image Understanding
-Status: In progress.
+## Phase 4 · 画面增强 —— 已完成（0.7.0）
+「再扫一屏」追加进 ocrPasses[] 并合并去重，送 Tesseract 前 2x 放大，
+「轮播请翻到下一张再扫」。集合改为一个 URL 一条 Capture。
 
-Goals:
-- Extract image URLs and limited base64 image data.
-- Call Gemini from popup.
-- Show bilingual structured summary.
-- Improve quota/rate-limit diagnostics.
+## Phase 5 · 口播 —— 取消，不做
+2026-09-10 用户决定不做。理由见 `ai/decisions.md` 同日那条：
+本地 Whisper 要运行时下载数百 MB、中文准确率不稳、外加音频管线与两个敏感权限，
+代价与收益不成比例。口播分区保留为诚实状态：显示平台字幕轨道，
+没有时引导用户去「画面」抓烧录字幕。
 
-## Phase 3 - Video Frame Sampling
-Status: Planned.
+## Phase 6 · 打磨 —— 已完成（0.8.0）
+设置页（稿件档位 / 评论开关 / OCR 语言 / 集合上限 / 全量 JSON 导出导入 / Gemini key 标停用并可清除）、
+笔记导出（单条 .md、文件夹合并 .md）、正文来源可见、错误与空状态文案全中文且给下一步。
 
-Goals:
-- Detect video elements.
-- Capture selected frames with canvas.
-- Send frames to Gemini vision model.
-
-## Phase 4 - UI Polish
-Status: Planned.
-
-Goals:
-- Loading animation.
-- Copy summary button.
-- Better error handling.
-- Cleaner visual design.
-
-## Phase 5 - Audio Capture
-Status: Planned.
-
-Goals:
-- Record audio from playing video where possible.
-- Send audio to Gemini for transcription and summarization.
-
-## Phase 6 - Publishing
-Status: Planned.
-
-Goals:
-- Package extension zip.
-- Prepare Chrome Web Store listing.
-- Review privacy/security implications.
-- Submit for review.
+## 之后（可选，非完成定义）
+- 真实站点选择器修复：需要用户提供真实页面的 DOM 快照，无法盲改。
+- 「跟着视频扫」：定时抽帧 OCR 抓烧录字幕，复用 Phase 4 管线，是口播的低成本替代。
+- 用户逐次确认后的视觉模型 / 云 STT；自动点击轮播下一张；上架与隐私政策。
