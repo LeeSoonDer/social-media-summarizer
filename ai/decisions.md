@@ -94,3 +94,15 @@ Decision: 瘦身档严格按 CLAUDE.md，只有 标题 + 正文 + 画面文字 +
 Reason: CLAUDE.md Phase 3 明写「全量：**再加** platform、url、author、tags、images、videos、可见字幕、采集时间」，即这些不属于瘦身。
 Tradeoff: 架构文档 §8 Phase 3 有一句「输出开头带平台、URL、采集时间」，与此冲突。以 CLAUDE.md 为准，已向用户指出。要改的话是 `buildPageDraft` 里把 `页面信息` 块提到 mode 判断之外，一行的事。
 Future Implications: 两份文档再冲突时，仍以 CLAUDE.md 为执行依据，并在汇报里点名冲突。
+
+## 2026-09-10 - 集合改为一个 URL 一条 Capture
+Decision: `upsertCollection` 的匹配键从 `url + fingerprint` 改成只用 `url`。fingerprint 仍然存，但只用来判断内容变没变（决定状态栏说「已更新」还是「已是最新」）。
+Reason: fingerprint 含 `ocrText`，而 Phase 4 的「再扫一屏」每扫一屏都会改写 `ocrText`。旧写法下同一页每扫一屏就多出一条集合项。这个缺陷从 Phase 1 就潜伏着（重扫拿到不同 OCR 文本即触发），只是当时不常碰到。
+Tradeoff: 弹窗时代「同一页不同轮播屏 = 多条集合项」的用法没了。这正是 Phase 4 想要的——轮播的多屏合并在 `ocrPasses[]` 里，不该体现为多条 Capture（架构 4.1：Capture 是「机器从页面采下来的结构化结果」，一页一条）。
+Future Implications: 集合是「这一次要丢给模型的材料包」，去重维度就是 URL。以后要按屏拆分，加字段而不是加条目。
+
+## 2026-09-10 - OCR 去重键去掉空白与标点
+Decision: `dedupeKey()` 比对前把整行的空白和常见中英标点都去掉，只保留文字与数字，命中就丢；保留先出现的那一行原文。
+Reason: 轮播每一屏的界面文字（用户名、关注、点赞数）完全一样，但 Tesseract 在不同屏上对同一行的空格与标点判断经常不一致，逐字符比对去不掉。
+Tradeoff: 只差标点的两句真实内容会被当成同一句丢掉一句。社媒图上的字重复率远高于这种情况，权衡下值得。近义句/错字变体不做合并，那需要编辑距离，代价与误伤都更大。
+Future Implications: 若将来换 OCR 引擎（Phase 6 或之后），这套去重仍然可用，因为它只吃文本。

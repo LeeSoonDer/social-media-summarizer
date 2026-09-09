@@ -1,13 +1,22 @@
 # 当前状态
 
-版本：0.6.1 · 分支 `feat/sidepanel` · 更新于 2026-09-09
+版本：0.7.0 · 分支 `feat/sidepanel` · 更新于 2026-09-10
 
 ## 三行现状
 
 1. 右侧 Side Panel 工作台五分区可用，原有的平台提取、视口 OCR、集合、复制全在里面，翻页时侧栏常驻。
 2. 笔记最小闭环已通：回车即存收集箱、停键 400ms 自动保存、一层文件夹、「丢进当前笔记」、本页相关聚合。
 3. 复制给 AI 已定稿：瘦身/全量两档 + 固定中文前言 + 可选附带笔记，集合按采集顺序拼接。
-4. 只剩口播是空状态（Phase 5）；多屏 OCR 合并（Phase 4）与设置页/导出（Phase 6）未做。
+4. 画面已支持多屏追加合并去重与 2x 预处理；只剩口播是空状态（Phase 5）与设置页/导出（Phase 6）。
+
+## 已完成（Phase 4 · 画面增强）
+
+- `lib/ocr.js` 的 `appendPass` / `mergePasses`：同一 url 的多屏按扫描先后铺开、逐行去重，
+  去重键去掉空白与中英标点（OCR 对同一行的空格/标点判断经常不一致）。
+- 整屏重复不再堆 pass；上限 12 屏。「清空重扫」是追加式设计的退路。
+- `upscale()`：截图先 2x 画到 canvas 再送识别，边长封顶 4000，失败退回原图。
+- 「再扫一屏」按钮 + 「轮播请翻到下一张再扫」提示 + 「已扫 N 屏 · 去重后 M 行」。
+- 集合改为一个 URL 一条 Capture（见 decisions 同日那条）。
 
 ## 已完成（Phase 3 · 复制给 AI）
 
@@ -43,7 +52,7 @@
 ## 已知限制
 
 - 社媒 DOM 频繁改版，选择器会失效（Phase 6 按真实常用站修）。
-- OCR 只扫当前视口；重扫会覆盖上一次结果，多屏合并留到 Phase 4。
+- OCR 只扫当前视口，需要用户自己翻页再扫；不会自动点轮播下一张（那是 Phase 7 可选项）。
 - 非 YouTube 的口播没有文字来源；YouTube 字幕轨道仍走 `content.js` 原逻辑。
 - Tesseract 语言包打包在 `vendor/`，扩展体积偏大。
 - `host_permissions` 已升为 `<all_urls>`：侧栏拿不到 `activeTab`，`tabs.captureVisibleTab` 只认 `<all_urls>` 或 `activeTab`，否则侧栏里 OCR 必挂。
@@ -55,6 +64,10 @@
 
 ## 下一步
 
-Phase 4 画面增强：「再扫一屏」对同一 url 追加 `ocrPasses[]` 并合并去重进 `ocrText`、
-「轮播请翻到下一张再扫」提示、画布放大 2x 预处理再送 Tesseract。
-不换 OCR 引擎（除非 Tesseract 已完全不可用）。
+Phase 5 口播，分两步且先 UI 后引擎：
+5a 状态机（未开始 / 进行中 / 已完成）、开始与停止、失败说人话。
+5b 引擎按 Google 的 MV3 模式：service worker 里用户点击后 `getMediaStreamId`，
+offscreen document 里 `getUserMedia` 吃这个 id，把 tab 声音接回 AudioContext destination
+避免标签页静音；本地 Whisper 按需加载，禁止把模型权重打进 git。
+字幕优先于 STT，YouTube 的 captionTracks 逻辑留在 content.js 不动。
+转写结果写进 `content.speech`（`lib/format.js` 已经预留，会自动优先于平台字幕）。

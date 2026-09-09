@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Social Extractor",
   "description": "右侧工作台：采下当前页的正文、图上的字，复制给任意网页 AI",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
