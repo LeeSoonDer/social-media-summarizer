@@ -243,9 +243,10 @@ async function saveCollection() {
 async function upsertCollection(content) {
   const now = new Date().toISOString();
   const fingerprint = collectionFingerprint(content);
-  const existingIndex = collection.findIndex(
-    (entry) => entry.url === content.url && entry.fingerprint === fingerprint
-  );
+  // 一个 URL 一条 Capture。fingerprint 只用来判断内容变没变，不参与匹配：
+  // Phase 4 起「再扫一屏」会不断改写 ocrText，把它算进匹配键会导致同一页
+  // 每扫一屏就多出一条集合项。轮播的多屏合并在 ocrPasses[] 里，不在集合里。
+  const existingIndex = collection.findIndex((entry) => entry.url === content.url);
 
   if (existingIndex >= 0) {
     const previous = collection[existingIndex];
@@ -259,7 +260,7 @@ async function upsertCollection(content) {
       fingerprint,
     };
     await saveCollection();
-    return "updated";
+    return previous.fingerprint === fingerprint ? "unchanged" : "updated";
   }
 
   collection.push({
@@ -334,8 +335,31 @@ function renderCollection() {
 /* ---------- 渲染本页 ---------- */
 
 function renderOcr(text) {
-  $("ocrText").textContent = text || "未识别到画面文字。翻到要看的那一屏，再点「重新扫描本屏」。";
+  $("ocrText").textContent = text || "还没识别到画面文字。翻到有字的那一屏，点「再扫一屏」。";
   $("copyOcr").disabled = !text;
+  renderOcrPasses();
+}
+
+function renderOcrPasses() {
+  const passes = currentContent?.ocrPasses || [];
+  const lines = currentContent?.ocrText ? currentContent.ocrText.split(/\r?\n/).length : 0;
+  $("ocrPassCount").textContent = passes.length
+    ? `本页已扫 ${passes.length} 屏 · 去重后 ${lines} 行`
+    : "本页还没扫过";
+  $("resetOcr").disabled = passes.length === 0;
+}
+
+// 把这一屏并进本页的多屏结果。返回给调用方一句人话。
+function absorbOcrPass(text) {
+  const before = currentContent.ocrPasses || [];
+  const { passes, added, reason } = SocialOcr.appendPass(before, text);
+  currentContent.ocrPasses = passes;
+  currentContent.ocrText = SocialOcr.mergePasses(passes);
+  renderOcr(currentContent.ocrText);
+  $("pillOcr").textContent = `画面字 ${currentContent.ocrText ? `${passes.length} 屏` : "无"}`;
+  if (added) return { ok: true, message: `已并入第 ${passes.length} 屏。轮播请翻到下一张再扫。` };
+  if (reason === "duplicate") return { ok: false, message: "这一屏和之前扫过的一样，没有新内容。翻到下一张再扫。" };
+  return { ok: false, message: "本屏没有识别到文字，翻到有字的一屏再扫。" };
 }
 
 function renderContent(content) {
@@ -442,16 +466,24 @@ async function run() {
     // 在这里盖采集时间戳：全量稿要用它，而 upsertCollection 只会给存进集合的那份盖章。
     content.capturedAt = new Date().toISOString();
 
+    // 同一 URL 之前扫过的屏要接着用，不能因为点了一次刷新就把轮播的前几屏丢掉。
+    const previous = collection.find((entry) => entry.url === content.url);
+    content.ocrPasses = previous?.ocrPasses ? [...previous.ocrPasses] : [];
+
     try {
       setStatus("正在识别画面文字…", "loading");
       const ocrText = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"));
-      content.ocrText = ocrText;
+      const merged = SocialOcr.appendPass(content.ocrPasses, ocrText);
+      content.ocrPasses = merged.passes;
+      content.ocrText = SocialOcr.mergePasses(merged.passes);
       content.metadata = [
         ...(content.metadata || []),
-        ocrText ? "已从当前视口截图识别到画面文字。" : "已跑 OCR，但当前视口没有识别到文字。",
+        content.ocrText
+          ? `画面文字来自 ${merged.passes.length} 屏截图 OCR。`
+          : "已跑 OCR，但当前视口没有识别到文字。",
       ];
     } catch (ocrErr) {
-      content.ocrText = "";
+      content.ocrText = SocialOcr.mergePasses(content.ocrPasses);
       content.metadata = [...(content.metadata || []), `OCR 失败：${humanError(ocrErr)}`];
     }
 
@@ -462,7 +494,16 @@ async function run() {
       platform: content.platform || platformFromUrl(tab.url),
     });
     const result = await upsertCollection(content);
-    setStatus(result === "added" ? "已采集本页并写入集合。" : "本页已在集合里，已更新记录。", "ok");
+    const passes = content.ocrPasses?.length || 0;
+    const screens = passes > 1 ? `（画面共 ${passes} 屏）` : "";
+    setStatus(
+      result === "added"
+        ? `已采集本页并写入集合。${screens}`
+        : result === "unchanged"
+          ? `本页内容没变，集合里那条已是最新。${screens}`
+          : `本页已在集合里，已更新记录。${screens}`,
+      "ok"
+    );
   } catch (err) {
     setStatus(humanError(err), "error");
   } finally {
@@ -472,7 +513,7 @@ async function run() {
   }
 }
 
-async function rescanScreen() {
+async function scanAnotherScreen() {
   if (busy) return;
   if (!currentContent) {
     setStatus("先点顶部「刷新」采一次本页。", "error");
@@ -488,14 +529,9 @@ async function rescanScreen() {
     if (!tab?.id) throw new Error("拿不到当前标签页");
 
     const ocrText = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"));
-    currentContent.ocrText = ocrText;
-    renderOcr(ocrText);
-    $("pillOcr").textContent = `画面字 ${ocrText ? "已采" : "无"}`;
+    const result = absorbOcrPass(ocrText);
     await upsertCollection(currentContent);
-    setStatus(
-      ocrText ? "已重新识别本屏画面文字。" : "本屏没有识别到文字，翻到有字的一屏再扫。",
-      ocrText ? "ok" : ""
-    );
+    setStatus(result.message, result.ok ? "ok" : "");
   } catch (err) {
     setStatus(`扫描失败：${humanError(err)}`, "error");
   } finally {
@@ -578,7 +614,17 @@ window.addEventListener("pagehide", () => {
 });
 
 $("refresh").addEventListener("click", run);
-$("rescan").addEventListener("click", rescanScreen);
+$("rescan").addEventListener("click", scanAnotherScreen);
+
+$("resetOcr").addEventListener("click", async () => {
+  if (!currentContent) return;
+  currentContent.ocrPasses = [];
+  currentContent.ocrText = "";
+  renderOcr("");
+  $("pillOcr").textContent = "画面字 无";
+  await upsertCollection(currentContent);
+  setStatus("本页画面文字已清空，可以重新一屏一屏扫。", "ok");
+});
 
 $("copyPage").addEventListener("click", () => {
   copyText(currentContent ? leanDraft(currentContent) : "", "已复制本页文本。");

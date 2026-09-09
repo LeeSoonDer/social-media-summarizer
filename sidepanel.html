@@ -65,10 +65,12 @@
     <!-- 画面 -->
     <section id="panel-ocr" class="panel">
       <div class="row">
-        <button id="rescan">重新扫描本屏</button>
+        <button id="rescan" class="primary">再扫一屏</button>
         <button id="copyOcr" disabled>复制画面文字</button>
+        <button id="resetOcr" class="danger" disabled title="丢掉本页已扫的所有屏，从头再来">清空重扫</button>
       </div>
-      <p class="hint">只识别当前视口。轮播请翻到下一张再扫。目前重扫会覆盖上一次结果，多屏合并留到 Phase 4。</p>
+      <p class="hint">只识别当前视口。<strong>轮播请翻到下一张再扫</strong>，多屏结果会自动合并去重。</p>
+      <p class="hint" id="ocrPassCount">本页还没扫过</p>
       <pre id="ocrText" class="mono">—</pre>
     </section>
 
