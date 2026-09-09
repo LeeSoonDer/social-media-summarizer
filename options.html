@@ -2,54 +2,165 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>Social Summarizer — 设置</title>
+  <title>Social Extractor · 设置</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      max-width: 480px;
-      margin: 40px auto;
+      font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      max-width: 620px;
+      margin: 36px auto 60px;
       padding: 0 20px;
-      color: #1a1a1a;
-    }
-    h1 { font-size: 20px; margin-bottom: 8px; }
-    p.hint { font-size: 13px; color: #666; line-height: 1.5; margin-bottom: 20px; }
-    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    input {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      color: #161616;
+      background: #f7f7f4;
       font-size: 14px;
-      font-family: monospace;
+      line-height: 1.6;
     }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    h2 { font-size: 15px; margin-bottom: 10px; }
+    .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
+    section {
+      background: #fff;
+      border: 1px solid #e0e0dc;
+      border-radius: 9px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    label.row { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .hint { font-size: 12px; color: #777; margin-top: 4px; }
+    select, input[type="number"], input[type="password"] {
+      border: 1px solid #d9d9d4;
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: #161616;
+      min-width: 240px;
+    }
+    .check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+    .check input { margin-top: 4px; }
     button {
-      margin-top: 14px;
-      padding: 10px 20px;
-      background: #6366f1;
-      color: #fff;
-      border: none;
+      border: 1px solid #d0d0d0;
+      background: #fff;
       border-radius: 6px;
-      font-size: 14px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #161616;
       cursor: pointer;
+      margin-right: 8px;
     }
-    button:hover { background: #4f46e5; }
-    #msg { margin-top: 12px; font-size: 13px; }
-    #msg.ok { color: #16a34a; }
-    #msg.err { color: #dc2626; }
-    a { color: #6366f1; }
+    button:hover:not(:disabled) { background: #f2f2ee; }
+    button.primary { background: #202124; color: #fff; border-color: #202124; }
+    button.primary:hover:not(:disabled) { background: #35363a; }
+    button.danger { color: #b91c1c; border-color: #fecaca; }
+    #msg { margin-top: 12px; font-size: 13px; min-height: 20px; }
+    #msg.ok { color: #15803d; }
+    #msg.err { color: #b91c1c; }
+    .retired {
+      opacity: 0.65;
+      border-style: dashed;
+    }
+    .tag {
+      display: inline-block;
+      background: #fee2e2;
+      color: #b91c1c;
+      border-radius: 999px;
+      padding: 1px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .stat { font-size: 12px; color: #666; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h1>API 设置</h1>
-  <p class="hint">
-    在此粘贴 Gemini API Key。Key 仅保存在本机 Chrome 中，不会上传或写入代码仓库。
-    获取 Key：<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
-  </p>
-  <label for="apiKey">Gemini API Key</label>
-  <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
-  <button type="button" id="save">保存</button>
+  <h1>Social Extractor · 设置</h1>
+  <p class="sub">全部设置只存在这台电脑的 Chrome 里，不上传。改完立刻生效，侧栏不用重开。</p>
+
+  <section>
+    <h2>给 AI 的稿</h2>
+
+    <div class="field">
+      <label class="row" for="aiPromptMode">稿件档位</label>
+      <select id="aiPromptMode">
+        <option value="lean">瘦身 —— 标题 + 正文 + 画面文字 + 口播</option>
+        <option value="full">全量 —— 再加平台 / 链接 / 作者 / 标签 / 图片 / 视频 / 采集时间</option>
+      </select>
+      <p class="hint">侧栏底部也能随时切换，两处是同一个设置。</p>
+    </div>
+
+    <div class="field">
+      <label class="check">
+        <input type="checkbox" id="commentsEnabled" />
+        <span>
+          抓取页面上可见的评论
+          <span class="hint" style="display:block">
+            默认关。评论噪音大，容易把正文淹掉；打开后只抓当前已经加载出来的那些，最多 30 条，
+            并且只出现在「全量」稿里。
+          </span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <h2>画面文字（OCR）</h2>
+    <div class="field">
+      <label class="row" for="ocrLang">识别语言</label>
+      <select id="ocrLang">
+        <option value="eng+chi_sim">简体中文 + 英文（默认，最快）</option>
+        <option value="eng+chi_sim+chi_tra">简体 + 繁体 + 英文（首次多加载约 26MB，明显变慢）</option>
+        <option value="eng">只有英文（最快）</option>
+      </select>
+      <p class="hint">
+        语言包是打包在扩展里的，不联网下载。选得越多，第一次识别时装载得越久，
+        所以默认不带繁体。看港台内容再打开。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>集合</h2>
+    <div class="field">
+      <label class="row" for="maxCollectionItems">最多保留多少页</label>
+      <input type="number" id="maxCollectionItems" min="10" max="500" step="10" />
+      <p class="hint">超出后自动丢掉最早的。集合是「这一次要丢给模型的材料包」，不是档案柜。笔记不受这个上限影响。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>备份</h2>
+    <p class="hint" style="margin-top:0">
+      导出的 JSON 包含集合、笔记、文件夹和设置四样，是完整备份。数据只在本机，删扩展就没了，建议偶尔导一份。
+    </p>
+    <div class="field" style="margin-top:12px">
+      <button type="button" id="exportJson" class="primary">导出全部为 JSON</button>
+      <button type="button" id="importPick">导入 JSON…</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden />
+      <p class="hint">导入会<strong>覆盖</strong>现有的集合、笔记、文件夹和设置，会先让你确认一次。</p>
+      <p class="stat" id="stat">正在读取本机数据…</p>
+    </div>
+  </section>
+
+  <section class="retired">
+    <h2>Gemini API Key <span class="tag">已停用</span></h2>
+    <p class="hint" style="margin-top:0">
+      本扩展<strong>不再调用任何云端模型</strong>。提取、OCR 全部在本机完成，页面内容默认不上传。
+      这一栏只是让老用户能把以前存过的 Key 清掉，它没有接在任何功能上，填了也不会被使用。
+    </p>
+    <div class="field" style="margin-top:12px">
+      <p class="stat" id="keyState">检查中…</p>
+      <button type="button" id="clearKey" class="danger">删掉本机保存的 Key</button>
+    </div>
+  </section>
+
   <p id="msg"></p>
+
+  <script src="lib/store.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
