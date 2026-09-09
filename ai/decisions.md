@@ -52,3 +52,27 @@ Decision: `lib/ocr.js` 的噪声过滤由 `!/^[\W_]+$/` 改为 `/[\p{L}\p{N}]/u`
 Reason: JS 的 `\w` 只含 `[A-Za-z0-9_]`，中文字符全部算 `\W`，原写法会把整行纯中文的 OCR 结果当噪声删掉——正好废掉小红书这条主路径。
 Tradeoff: 无。语义仍是「丢掉纯符号行」，只是这次对中日韩正确。
 Future Implications: 后续任何针对文本的正则过滤都要显式考虑 CJK。
+
+## 2026-09-09 - 笔记绑「实时页面身份」而不是提取结果
+Decision: 新增 `currentPageRef`（url/title/platform，由 tab 事件实时更新），与 `currentContent`（上次采到了什么）分开。笔记的 sourceUrl 一律取前者，且保存那一刻再 `getActiveTab()` 问一次。
+Reason: 小红书 / IG 是 SPA，站内换帖不触发 `complete`，`currentContent` 会停在上一条帖子上。若笔记绑它，用户在新帖上打的字会静默记到旧帖名下——这是不可感知的脏数据，比报错更糟。
+Tradeoff: 多一次 `chrome.tabs.query`，可忽略。
+Future Implications: 任何「跟当前页绑定」的新功能都走 `currentPageRef`，不要读 `currentContent.url`。
+
+## 2026-09-09 - 「本页相关」按归一化后的内容 id 匹配
+Decision: `lib/store.js` 的 `normalizeUrl()` 先按平台提取内容 id（`xhs:note:<id>`、`yt:video:<id>`、`ig:post:<id>`、`x:tweet:<id>`、`tiktok:video:<id>`），取不到再退回「host+path+过滤后的参数」。Note 只存原始 `sourceUrl`，匹配一律在运行时归一化后比较。
+Reason: 验收线「同一 URL 再打开能看到旧笔记」用 `location.href` 精确匹配必挂：小红书 `xsec_token` 每次会话都变，IG 带 `igshid`，X 带 `?s=20`，YouTube 带 `&t=`。同一条小红书笔记还有 explore / discovery/item / user/profile 三种路径。
+Tradeoff: 归一化规则会随平台改版失效，需要跟选择器一起维护。
+Future Implications: 不加派生字段进 Note，保持 CLAUDE.md 数据形状不变；规则变了不用迁移历史数据。
+
+## 2026-09-09 - 笔记列表只由笔记自己的事件驱动
+Decision: `SocialNotes.render()` 在正文 textarea 有焦点时整次跳过（置 renderPending，blur 再补）；400ms 自动保存落盘后只改「已保存 HH:mm」那一个文本节点，绝不重建列表；采集 / 集合保存 / 清空集合的调用链里不得出现 render。
+Reason: 每条笔记正文是 textarea，一旦重建节点，光标、选区、滚动位置全丢，正在打的字也可能被旧值覆盖。这是本阶段唯一会让用户可感知丢字的地方。
+Tradeoff: 列表可能晚一拍才刷新。宁可晚一拍。
+Future Implications: 以后给笔记加任何展示（标签、计数），也只能改文本节点，不能整块重建。
+
+## 2026-09-09 - 中文输入法组合态防护
+Decision: 顶部输入框的 Enter 处理首行 `if (e.isComposing || e.keyCode === 229) return;`，Shift+Enter 留给换行；正文 textarea 在 compositionstart 取消待落盘计时器，compositionend 后重新起 400ms。
+Reason: 这是中文 UI 产品，用户全程用拼音。候选窗开着时按 Enter 是「选词」，若直接保存会把半截拼音存成笔记并打断输入。
+Tradeoff: 无。
+Future Implications: 之后任何绑 Enter 或 input 的输入框都要照做。

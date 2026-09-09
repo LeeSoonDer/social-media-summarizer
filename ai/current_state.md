@@ -1,14 +1,25 @@
 # 当前状态
 
-版本：0.5.0 · 分支 `feat/sidepanel` · 更新于 2026-09-09
+版本：0.6.0 · 分支 `feat/sidepanel` · 更新于 2026-09-09
 
 ## 三行现状
 
-1. 主界面已从 460px 弹窗换成右侧 Side Panel 工作台，五分区（本页 / 画面 / 口播 / 集合 / 笔记）+ 底栏三键。
-2. 原有能力（平台提取、视口 OCR、集合 upsert、复制本页 / 复制集合）已整体迁入侧栏，翻页时侧栏常驻。
-3. 笔记（Phase 2）与口播引擎（Phase 5）仍是空状态，按钮 disable 并写明「下一阶段」。
+1. 右侧 Side Panel 工作台五分区可用，原有的平台提取、视口 OCR、集合、复制全在里面，翻页时侧栏常驻。
+2. 笔记最小闭环已通：回车即存收集箱、停键 400ms 自动保存、一层文件夹、「丢进当前笔记」、本页相关聚合。
+3. 只剩口播是空状态（Phase 5）；复制给 AI 的两档稿（Phase 3）与多屏 OCR 合并（Phase 4）未做。
 
-## 已完成
+## 已完成（Phase 2 · 笔记）
+
+- `lib/store.js`：folders / notes 各自一把 key，与集合彻底分表；inbox 惰性兜底且不可删改；
+  删文件夹先搬笔记再删夹；所有写走串行事务并在事务内重读，不写回快照。
+- `lib/notes.js`：笔记分区 UI。顶部输入框回车即存（不问文件夹）、拼音组合态防护、
+  停键 400ms 自动保存、有焦点时跳过重绘、本页相关与其它笔记去重、一层文件夹增删改。
+- `normalizeUrl` 按平台提取内容 id（xhs / yt / ig / x / tiktok），剥掉 xsec_token、igshid、?s=、&t=、utm_*，
+  「同一 URL 再打开能看到旧笔记」才不会被易变参数打穿。
+- `currentPageRef` 与 `currentContent` 解耦，笔记绑实时页面身份；保存时再问一次 activeTab。
+- 「丢进当前笔记」：本页已有笔记追加分隔块，没有则新建并把本页稿子垫底。
+
+## 已完成（Phase 1 · 侧栏）
 
 - MV3 + `sidePanel` 权限 + `side_panel.default_path` + `background.js` service worker。
 - 点击扩展图标 = 打开侧栏（`setPanelBehavior({ openPanelOnActionClick: true })`，manifest 里已移除 `default_popup`）。
@@ -28,4 +39,6 @@
 
 ## 下一步
 
-Phase 2 笔记最小闭环：`lib/store.js` 分开存 `folders` + `notes`，固定 `inbox`，输入框回车即存，本页相关聚合，停键 400ms 自动保存，「丢进当前笔记」接通。
+Phase 3 复制给 AI 定稿：瘦身 / 全量两档（设置或底栏切换）、集合按时间顺序拼接、
+开头一段固定中文说明（这是提取原料，请基于原文分析，不要假装看过视频）、
+可选勾选「附带我的笔记」、本页顶部提示「本页已有笔记 · N」。
