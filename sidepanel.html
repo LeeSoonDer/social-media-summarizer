@@ -12,11 +12,11 @@
       <span id="platformBadge" class="badge">未识别</span>
       <span id="pageHost" class="host" title="">等待页面</span>
     </div>
-    <button id="refresh" class="ghost" title="重新采集当前页">刷新</button>
+    <button id="refresh" class="ghost" title="重新读取当前网页的文字（不会刷新网页本身）">重新采集</button>
   </header>
 
   <p id="status" class="status loading">正在提取页面内容…</p>
-  <div id="staleBanner" class="banner" hidden>当前标签页已变化 · 点「刷新」重新采集</div>
+  <div id="staleBanner" class="banner" hidden>当前标签页已变化 · 点右上角「重新采集」</div>
 
   <nav class="tabs" role="tablist">
     <button class="tab is-active" data-tab="page" role="tab">本页</button>
@@ -65,11 +65,11 @@
     <!-- 画面 -->
     <section id="panel-ocr" class="panel">
       <div class="row">
-        <button id="rescan" class="primary">再扫一屏</button>
+        <button id="rescan" class="primary" title="识别当前视口的画面文字（Alt+Shift+S）">扫本屏</button>
         <button id="copyOcr" disabled>复制画面文字</button>
         <button id="resetOcr" class="danger" disabled title="丢掉本页已扫的所有屏，从头再来">清空重扫</button>
       </div>
-      <p class="hint">只识别当前视口。<strong>轮播请翻到下一张再扫</strong>，多屏结果会自动合并去重。</p>
+      <p class="hint">只识别当前视口。<strong>轮播请翻到下一张再扫</strong>，多屏结果自动合并去重。<br />按 <strong>Alt+Shift+S</strong> 就不用来回点了：翻一张、按一下。</p>
       <p class="hint" id="ocrPassCount">本页还没扫过</p>
       <pre id="ocrText" class="mono">—</pre>
     </section>
@@ -92,7 +92,7 @@
       </p>
       <p class="hint">
         没有字幕轨道时怎么办：中文短视频大多把字幕<strong>烧录在画面上</strong>，
-        去「画面」分区一边播一边点「再扫一屏」，就能把这些字抓成文本。
+        去「画面」分区一边播一边点「扫本屏」（或按 Alt+Shift+S），就能把这些字抓成文本。
       </p>
     </section>
 
@@ -135,6 +135,8 @@
     </section>
   </main>
 
+  <div id="toast" class="toast" hidden></div>
+
   <div class="aibar">
     <label class="ai-field">
       稿件
@@ -151,9 +153,9 @@
   </div>
 
   <footer class="bottombar">
-    <button id="copyPage" class="primary" disabled>复制本页</button>
-    <button id="toNote" disabled title="把本页瘦身稿追加到本页笔记">丢进当前笔记</button>
-    <button id="copyAi" disabled>复制给 AI</button>
+    <button id="copyPage" class="primary" disabled title="纯原文：标题 + 正文 + 画面字，不带给 AI 的说明">复制原文</button>
+    <button id="toNote" disabled title="把本页原文追加到本页笔记里">丢进笔记</button>
+    <button id="copyAi" disabled title="原文 + 一段中文说明（按下面选的档位），可勾选附带笔记">复制给 AI</button>
   </footer>
 
   <script src="vendor/tesseract/tesseract.min.js"></script>

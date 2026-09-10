@@ -37,10 +37,39 @@ function setStatus(text, type = "") {
   el.className = `status ${type}`.trim();
 }
 
+// 本页状态：会被记住，进度跑完后靠 restorePageStatus() 还原。
+function setPageStatus(text, type = "") {
+  pageStatus = { text, type };
+  setStatus(text, type);
+}
+
+function restorePageStatus() {
+  setStatus(pageStatus.text, pageStatus.type);
+}
+
+// 顶部状态栏说「本页处于什么状态」（正在提取 / 已采集 / 失败）；
+// 动作的结果（已复制 / 已导出 / 已删除）走底部 toast——
+// 状态栏在最顶端，用户在长列表底部点按钮时根本看不见它。
+let toastTimer = null;
+// 扫描过程会把进度写进顶部状态栏；扫完要还原成本页状态，
+// 否则状态栏永远停在「正在识别文字」，看起来像卡死了。
+let pageStatus = { text: "正在提取页面内容…", type: "loading" };
+
+function notify(text, type = "") {
+  const el = $("toast");
+  el.textContent = text;
+  el.className = `toast ${type}`.trim();
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.hidden = true;
+  }, type === "error" ? 6000 : 3000);
+}
+
 function humanError(err) {
   const raw = String(err?.message || err || "未知错误");
   if (/Receiving end does not exist|Could not establish connection/i.test(raw)) {
-    return "连不上页面脚本。请刷新目标网页后再点「刷新」。";
+    return "连不上页面脚本。请刷新一下目标网页，再点「重新采集」。";
   }
   if (/Cannot access|activeTab|all_urls/i.test(raw)) {
     return "没有这个页面的访问权限。到 chrome://extensions 重新加载扩展，再刷新网页。";
@@ -143,14 +172,14 @@ function downloadText(filename, text, mime = "text/markdown;charset=utf-8") {
 
 async function copyText(text, okMessage) {
   if (!text) {
-    setStatus("没有可复制的内容。", "error");
+    notify("没有可复制的内容。", "error");
     return;
   }
   try {
     await navigator.clipboard.writeText(text);
-    setStatus(okMessage, "ok");
+    notify(okMessage, "ok");
   } catch (err) {
-    setStatus(`复制失败：${humanError(err)}`, "error");
+    notify(`复制失败：${humanError(err)}`, "error");
   }
 }
 
@@ -314,7 +343,7 @@ function renderCollection() {
   if (!collection.length) {
     const li = document.createElement("li");
     li.className = "hint";
-    li.textContent = "还没有采集记录。打开一个支持的页面，点顶部「刷新」即可写入。";
+    li.textContent = "还没有采集记录。打开一个支持的页面，点右上角「重新采集」即可写入。";
     list.appendChild(li);
     return;
   }
@@ -337,7 +366,7 @@ function renderCollection() {
     del.addEventListener("click", async () => {
       collection = collection.filter((entry) => entry.id !== item.id);
       await saveCollection();
-      setStatus("已删除一条集合记录。", "ok");
+      notify("已删除一条集合记录。", "ok");
     });
     head.appendChild(del);
 
@@ -361,7 +390,8 @@ function renderCollection() {
 /* ---------- 渲染本页 ---------- */
 
 function renderOcr(text) {
-  $("ocrText").textContent = text || "还没识别到画面文字。翻到有字的那一屏，点「再扫一屏」。";
+  $("ocrText").textContent =
+    text || "本页还没扫过画面。翻到有字的那一屏，点上面的「扫本屏」（快捷键 Alt+Shift+S）。";
   $("copyOcr").disabled = !text;
   renderOcrPasses();
 }
@@ -382,7 +412,7 @@ function absorbOcrPass(text) {
   currentContent.ocrPasses = passes;
   currentContent.ocrText = SocialOcr.mergePasses(passes);
   renderOcr(currentContent.ocrText);
-  $("pillOcr").textContent = `画面字 ${currentContent.ocrText ? `${passes.length} 屏` : "无"}`;
+  $("pillOcr").textContent = `画面字 ${passes.length ? `${passes.length} 屏` : "未扫"}`;
   if (added) return { ok: true, message: `已并入第 ${passes.length} 屏。轮播请翻到下一张再扫。` };
   if (reason === "duplicate") return { ok: false, message: "这一屏和之前扫过的一样，没有新内容。翻到下一张再扫。" };
   return { ok: false, message: "本屏没有识别到文字，翻到有字的一屏再扫。" };
@@ -396,7 +426,7 @@ function renderContent(content) {
   $("pageHost").title = content.url || "";
 
   $("pillText").textContent = `正文 ${content.body ? "已采" : "为空"}`;
-  $("pillOcr").textContent = `画面字 ${content.ocrText ? "已采" : "无"}`;
+  $("pillOcr").textContent = `画面字 ${content.ocrPasses?.length ? `${content.ocrPasses.length} 屏` : "未扫"}`;
   $("pillImages").textContent = `图片 ${content.images?.length || 0}`;
   $("pillVideos").textContent = `视频 ${content.videos?.length || 0}`;
 
@@ -410,7 +440,7 @@ function renderContent(content) {
   urlEl.href = content.url || "#";
 
   $("pageBody").textContent =
-    content.body || "没有取到正文。可能是懒加载或选择器失效，把页面往下滚一点再点「刷新」。";
+    content.body || "没有取到正文。可能是懒加载或选择器失效，把页面往下滚一点再点「重新采集」。";
 
   const tags = content.tags || [];
   $("fieldTags").hidden = tags.length === 0;
@@ -470,7 +500,7 @@ async function run() {
 
     const tab = await getActiveTab();
     if (!tab?.id || !tab.url) {
-      setStatus("拿不到当前标签页，切到目标网页后再点「刷新」。", "error");
+      setStatus("拿不到当前标签页，切到目标网页后再点「重新采集」。", "error");
       return;
     }
     currentTabId = tab.id;
@@ -493,25 +523,16 @@ async function run() {
     // 在这里盖采集时间戳：全量稿要用它，而 upsertCollection 只会给存进集合的那份盖章。
     content.capturedAt = new Date().toISOString();
 
-    // 同一 URL 之前扫过的屏要接着用，不能因为点了一次刷新就把轮播的前几屏丢掉。
+    // 打开侧栏不自动跑 OCR：截图 + 识别要好几秒，而多数时候用户只是想看正文或笔记。
+    // 图上的字到「画面」分区点一下再扫。同一 URL 之前扫过的屏继续沿用。
     const previous = collection.find((entry) => entry.url === content.url);
     content.ocrPasses = previous?.ocrPasses ? [...previous.ocrPasses] : [];
-
-    try {
-      setStatus("正在识别画面文字…", "loading");
-      const ocrText = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"));
-      const merged = SocialOcr.appendPass(content.ocrPasses, ocrText);
-      content.ocrPasses = merged.passes;
-      content.ocrText = SocialOcr.mergePasses(merged.passes);
+    content.ocrText = SocialOcr.mergePasses(content.ocrPasses);
+    if (content.ocrText) {
       content.metadata = [
         ...(content.metadata || []),
-        content.ocrText
-          ? `画面文字来自 ${merged.passes.length} 屏截图 OCR。`
-          : "已跑 OCR，但当前视口没有识别到文字。",
+        `画面文字来自之前扫过的 ${content.ocrPasses.length} 屏。`,
       ];
-    } catch (ocrErr) {
-      content.ocrText = SocialOcr.mergePasses(content.ocrPasses);
-      content.metadata = [...(content.metadata || []), `OCR 失败：${humanError(ocrErr)}`];
     }
 
     renderContent(content);
@@ -522,17 +543,17 @@ async function run() {
     });
     const result = await upsertCollection(content);
     const passes = content.ocrPasses?.length || 0;
-    const screens = passes > 1 ? `（画面共 ${passes} 屏）` : "";
-    setStatus(
+    const screens = passes ? `画面已有 ${passes} 屏。` : "图上的字要到「画面」点「扫本屏」。";
+    setPageStatus(
       result === "added"
-        ? `已采集本页并写入集合。${screens}`
+        ? `已采集本页文本。${screens}`
         : result === "unchanged"
-          ? `本页内容没变，集合里那条已是最新。${screens}`
-          : `本页已在集合里，已更新记录。${screens}`,
+          ? `本页内容没变。${screens}`
+          : `已更新本页记录。${screens}`,
       "ok"
     );
   } catch (err) {
-    setStatus(humanError(err), "error");
+    setPageStatus(humanError(err), "error");
   } finally {
     busy = false;
     $("refresh").disabled = false;
@@ -543,7 +564,7 @@ async function run() {
 async function scanAnotherScreen() {
   if (busy) return;
   if (!currentContent) {
-    setStatus("先点顶部「刷新」采一次本页。", "error");
+    notify("先点顶部「重新采集」采一次本页。", "error");
     return;
   }
 
@@ -558,13 +579,16 @@ async function scanAnotherScreen() {
     const ocrText = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"));
     const result = absorbOcrPass(ocrText);
     await upsertCollection(currentContent);
-    setStatus(result.message, result.ok ? "ok" : "");
+    const passes = currentContent.ocrPasses?.length || 0;
+    pageStatus = { text: `本页已采集。画面已有 ${passes} 屏。`, type: "ok" };
+    notify(result.message, result.ok ? "ok" : "");
   } catch (err) {
-    setStatus(`扫描失败：${humanError(err)}`, "error");
+    notify(`扫描失败：${humanError(err)}`, "error");
   } finally {
     busy = false;
     $("rescan").disabled = false;
     $("refresh").disabled = false;
+    restorePageStatus();
   }
 }
 
@@ -628,7 +652,7 @@ $("aiMode").addEventListener("change", async (event) => {
   try {
     await SocialStore.saveSettings({ aiPromptMode: settings.aiPromptMode });
   } catch (err) {
-    setStatus(humanError(err), "error");
+    notify(humanError(err), "error");
   }
 });
 
@@ -640,6 +664,20 @@ window.addEventListener("pagehide", () => {
   SocialNotes.flush();
 });
 
+// 快捷键由 background.js 转发过来。翻一张图按一下 Alt+Shift+S，
+// 手不用离开键盘，也不用把鼠标挪到侧栏。
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.action !== "command") return;
+  if (message.command === "scan-screen") {
+    switchTab("ocr");
+    scanAnotherScreen();
+  }
+  if (message.command === "quick-note") {
+    switchTab("notes");
+    $("noteInput").focus();
+  }
+});
+
 $("refresh").addEventListener("click", run);
 $("rescan").addEventListener("click", scanAnotherScreen);
 
@@ -648,9 +686,9 @@ $("resetOcr").addEventListener("click", async () => {
   currentContent.ocrPasses = [];
   currentContent.ocrText = "";
   renderOcr("");
-  $("pillOcr").textContent = "画面字 无";
+  $("pillOcr").textContent = "画面字 未扫";
   await upsertCollection(currentContent);
-  setStatus("本页画面文字已清空，可以重新一屏一屏扫。", "ok");
+  notify("本页画面文字已清空，可以重新一屏一屏扫。", "ok");
 });
 
 $("copyPage").addEventListener("click", () => {
@@ -659,7 +697,7 @@ $("copyPage").addEventListener("click", () => {
 
 $("copyAi").addEventListener("click", () => {
   if (!currentContent) {
-    setStatus("还没采到本页内容。先点顶部「刷新」。", "error");
+    notify("还没采到本页内容。先点右上角「重新采集」。", "error");
     return;
   }
   const label = currentMode() === "lean" ? "瘦身稿" : "全量稿";
@@ -681,14 +719,14 @@ $("clearCollection").addEventListener("click", async () => {
   // 只动 collection 那把 key。笔记与文件夹在另外两张表里，这里碰不到。
   collection = [];
   await saveCollection();
-  setStatus("集合已清空（笔记不受影响）。", "ok");
+  notify("集合已清空（笔记不受影响）。", "ok");
 });
 
 // 笔记模块要的东西显式传进去，不靠跨文件的隐式全局。
 // 先把笔记读出来再跑采集：run() 中途会调 setPageRef -> SocialNotes.render()。
 SocialNotes.init({
   $,
-  setStatus,
+  setStatus: notify,
   humanError,
   hostOf,
   shortTime,
