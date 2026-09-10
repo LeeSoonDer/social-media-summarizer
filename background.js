@@ -16,3 +16,13 @@ openPanelOnActionClick();
 
 chrome.runtime.onInstalled.addListener(openPanelOnActionClick);
 chrome.runtime.onStartup.addListener(openPanelOnActionClick);
+
+// 快捷键在 service worker 里触发，转发给侧栏。
+// 侧栏没开的时候没有接收方，sendMessage 会 reject，吞掉即可。
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "_execute_action") return; // 由 Chrome 自己打开侧栏
+  chrome.runtime.sendMessage({ action: "command", command }).catch(() => {
+    // 侧栏没开着。这里不能替用户打开它：sidePanel.open 需要用户手势，
+    // 而快捷键在 SW 里不算。用户按 Alt+Shift+E 打开即可。
+  });
+});

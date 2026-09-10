@@ -56,5 +56,25 @@
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self';"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+E"
+      },
+      "description": "打开 Social Extractor 工作台"
+    },
+    "scan-screen": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "扫当前这一屏的画面文字"
+    },
+    "quick-note": {
+      "suggested_key": {
+        "default": "Alt+Shift+N"
+      },
+      "description": "跳到笔记输入框记一句"
+    }
   }
 }
