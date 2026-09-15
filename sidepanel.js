@@ -203,6 +203,21 @@ async function extractFromTab(tabId) {
   }
 }
 
+// 问页面这一屏该扫哪一块。拿不到就返回 null：扫整屏虽然脏，但总比扫不了强。
+async function ocrTargetFromTab(tabId) {
+  const message = { action: "ocrTarget" };
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch {
+    try {
+      await ensureContentScript(tabId);
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch {
+      return null;
+    }
+  }
+}
+
 /* ---------- 给 AI 的稿（lib/format.js 定形状，这里只管取材） ---------- */
 
 let settings = { aiPromptMode: "lean", commentsEnabled: false };
@@ -576,12 +591,16 @@ async function scanAnotherScreen() {
     const tab = await getActiveTab();
     if (!tab?.id) throw new Error("拿不到当前标签页");
 
-    const ocrText = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"));
-    const result = absorbOcrPass(ocrText);
+    // 先取景再截图：只扫内容区，导航栏和侧栏推荐根本不进模型。
+    const target = await ocrTargetFromTab(tab.id);
+    const scan = await SocialOcr.runOcr(tab, (step) => setStatus(`OCR：${step}`, "loading"), target);
+    const result = absorbOcrPass(scan.text);
     await upsertCollection(currentContent);
     const passes = currentContent.ocrPasses?.length || 0;
     pageStatus = { text: `本页已采集。画面已有 ${passes} 屏。`, type: "ok" };
-    notify(result.message, result.ok ? "ok" : "");
+    // 扫了哪一块要说出来：结果不对时，用户第一眼就知道是取景取歪了还是真没字。
+    const where = scan.cropped ? `只扫了${scan.label}` : "扫的是整屏";
+    notify(`${result.message}（${where}）`, result.ok ? "ok" : "");
   } catch (err) {
     notify(`扫描失败：${humanError(err)}`, "error");
   } finally {

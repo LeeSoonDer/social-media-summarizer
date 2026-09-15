@@ -732,9 +732,102 @@ async function extractContent() {
   return await extractors[platform]();
 }
 
+/* ---------- OCR 取景 ---------- */
+
+// 整屏截图里大半是导航栏、侧栏推荐、点赞数和关注按钮，Tesseract 会老老实实
+// 全读进来，这才是「扫出来一堆杂质」的头号来源。这里挑出这一屏真正承载内容的
+// 那个矩形，扫描只认它。返回 CSS 像素、相对视口；换算成截图的设备像素在侧栏做。
+
+const OCR_CONTAINERS = {
+  xiaohongshu: ["#noteContainer", ".note-container", "#detail-item"],
+  instagram: ["article"],
+  "x-twitter": ["article[data-testid='tweet']"],
+  reddit: ["shreddit-post", "[data-test-id='post-content']"],
+  youtube: ["#player", "#primary-inner"],
+  tiktok: ["[data-e2e='browse-video']", "[class*='DivVideoPlayerContainer']"],
+  threads: ["article"],
+  linkedin: [".feed-shared-update-v2", "article"],
+  facebook: ["[role='article']"],
+  generic: ["article", "main", "[role='main']"],
+};
+
+const MIN_OCR_SIDE = 140; // 比这还小的块不值得单独扫，退回整屏
+const MIN_OCR_AREA = 40000; // 约 200×200
+
+// 元素与视口的交集。整个在屏外、或根本没显示，返回 null。
+function viewportRect(el) {
+  if (!el || typeof el.getBoundingClientRect !== "function") return null;
+  const box = el.getBoundingClientRect();
+  if (!box.width || !box.height) return null;
+
+  const style = getComputedStyle(el);
+  if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return null;
+
+  const left = Math.max(0, box.left);
+  const top = Math.max(0, box.top);
+  const width = Math.min(window.innerWidth, box.right) - left;
+  const height = Math.min(window.innerHeight, box.bottom) - top;
+  if (width <= 0 || height <= 0) return null;
+  return { left, top, width, height };
+}
+
+function rectArea(rect) {
+  return rect ? rect.width * rect.height : 0;
+}
+
+function bigEnoughForOcr(rect) {
+  return !!rect && rect.width >= MIN_OCR_SIDE && rect.height >= MIN_OCR_SIDE && rectArea(rect) >= MIN_OCR_AREA;
+}
+
+// 同一选择器可能命中一堆（比如 feed 里的十几条 article），取屏幕上最大的那个。
+function largestVisible(selector, accept) {
+  let best = null;
+  let bestArea = 0;
+  for (const el of document.querySelectorAll(selector)) {
+    if (accept && !accept(el)) continue;
+    const rect = viewportRect(el);
+    if (!bigEnoughForOcr(rect)) continue;
+    const area = rectArea(rect);
+    if (area > bestArea) {
+      best = rect;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
+// 视频 > 主图 > 平台正文容器 > 整屏。
+// 视频排第一是因为「画面文字」十有八九是烧录字幕；图文帖的长图排第二；
+// 都没有才退回正文容器。全都不合格就返回 null，由侧栏退回扫整屏。
+function pickOcrTarget() {
+  const video = largestVisible("video");
+  if (video) return { rect: video, label: "视频区域" };
+
+  // 头像、图标、表情都会命中 img，用原始尺寸先筛一道。
+  const image = largestVisible("img", (el) => (el.naturalWidth || 0) >= MIN_OCR_SIDE);
+  if (image) return { rect: image, label: "主图区域" };
+
+  const selectors = [...(OCR_CONTAINERS[detectPlatform()] || []), ...OCR_CONTAINERS.generic];
+  for (const selector of selectors) {
+    const rect = largestVisible(selector);
+    if (rect) return { rect, label: "正文区域" };
+  }
+  return null;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === "ping") {
     sendResponse({ ok: true });
+    return false;
+  }
+  if (message.action === "ocrTarget") {
+    const target = pickOcrTarget();
+    sendResponse({
+      rect: target?.rect || null,
+      label: target?.label || "",
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      dpr: window.devicePixelRatio || 1,
+    });
     return false;
   }
   if (message.action === "extract") {
